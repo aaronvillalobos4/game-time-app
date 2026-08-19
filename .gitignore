@@ -1,0 +1,10 @@
+# Python / FastAPI
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/.env
+
+# Node / Next.js
+**/node_modules/
+**/.next/
+**/.env.local
