@@ -1,18 +1,33 @@
 "use client";
-import { useChat } from "@ai-sdk/react";
-import { Message } from "ai";
+
+import { useState } from "react";
+import { useChat, UIMessage } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 
 interface ItineraryChatProps {
   initialItinerary: string | null;
 }
 
 export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) {
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: "https://game-time-f7qt.onrender.com/api/chat",
-    body: {
-      currentItinerary: initialItinerary,
-    },
+  const [input, setInput] = useState("");
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({
+      api: "https://game-time-f7qt.onrender.com/api/chat",
+      body: {
+        currentItinerary: initialItinerary,
+      },
+    }),
   });
+
+  const isLoading = status === "submitted" || status === "streaming";
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+    
+    sendMessage({ text: input });
+    setInput("");
+  };
 
   return (
     <div className="w-full max-w-3xl mx-auto bg-[#1e293b] rounded-2xl border border-slate-800 p-6 shadow-xl text-left space-y-4">
@@ -28,34 +43,41 @@ export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) 
           </p>
         )}
 
-        {messages.map((m: Message) => (
-          <div
-            key={m.id}
-            className={`p-3.5 rounded-xl text-sm leading-relaxed max-w-[85%] ${
-              m.role === "user"
-                ? "bg-red-600 text-white self-end rounded-br-none"
-                : "bg-[#334155] text-slate-100 self-start rounded-bl-none border border-slate-700"
-            }`}
-          >
-            <div className="text-[10px] uppercase font-semibold tracking-wider text-slate-300 mb-1">
-              {m.role === "user" ? "You" : "Game Time Assistant"}
+        {messages.map((m: UIMessage) => {
+          const messageText = m.parts
+            .filter((part) => part.type === "text")
+            .map((part) => part.text)
+            .join("");
+
+          return (
+            <div
+              key={m.id}
+              className={`p-3.5 rounded-xl text-sm leading-relaxed max-w-[85%] ${
+                m.role === "user"
+                  ? "bg-red-600 text-white self-end rounded-br-none"
+                  : "bg-[#334155] text-slate-100 self-start rounded-bl-none border border-slate-700"
+              }`}
+            >
+              <div className="text-[10px] uppercase font-semibold tracking-wider text-slate-300 mb-1">
+                {m.role === "user" ? "You" : "Game Time Assistant"}
+              </div>
+              <p className="whitespace-pre-wrap">{messageText}</p>
             </div>
-            <p className="whitespace-pre-wrap">{m.content}</p>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Input Form */}
-      <form onSubmit={handleSubmit} className="flex gap-2 pt-2 border-t border-slate-800">
+      <form onSubmit={handleFormSubmit} className="flex gap-2 pt-2 border-t border-slate-800">
         <input
           value={input}
-          onChange={handleInputChange}
+          onChange={(e) => setInput(e.target.value)}
           placeholder="e.g., Switch hotel to one closer to venue..."
           className="flex-1 bg-[#334155] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
         />
         <button
           type="submit"
-          disabled={isLoading || !input?.trim()}
+          disabled={isLoading || !input.trim()}
           className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center min-w-[80px]"
         >
           {isLoading ? (
