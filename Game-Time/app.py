@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-app = FastAPI()
+app = FastAPI(redirect_slashes=True)
 
 # Enable CORS for Next.js frontend
 app.add_middleware(
