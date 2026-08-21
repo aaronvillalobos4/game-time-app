@@ -10,13 +10,17 @@ interface ItineraryChatProps {
 
 export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) {
   const [input, setInput] = useState("");
-  const { messages, sendMessage, status } = useChat({
+  
+  const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
       api: "https://game-time-f7qt.onrender.com/api/chat",
       body: {
         currentItinerary: initialItinerary,
       },
     }),
+    onError: (err) => {
+      console.error("ItineraryChat error:", err);
+    },
   });
 
   const isLoading = status === "submitted" || status === "streaming";
@@ -24,7 +28,7 @@ export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
-    
+
     sendMessage({ text: input });
     setInput("");
   };
@@ -43,28 +47,33 @@ export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) 
           </p>
         )}
 
-        {messages.map((m: UIMessage) => {
-          const messageText = m.parts
-            .filter((part) => part.type === "text")
-            .map((part) => part.text)
-            .join("");
-
-          return (
-            <div
-              key={m.id}
-              className={`p-3.5 rounded-xl text-sm leading-relaxed max-w-[85%] ${
-                m.role === "user"
-                  ? "bg-red-600 text-white self-end rounded-br-none"
-                  : "bg-[#334155] text-slate-100 self-start rounded-bl-none border border-slate-700"
-              }`}
-            >
-              <div className="text-[10px] uppercase font-semibold tracking-wider text-slate-300 mb-1">
-                {m.role === "user" ? "You" : "Game Time Assistant"}
-              </div>
-              <p className="whitespace-pre-wrap">{messageText}</p>
+        {messages.map((m: UIMessage) => (
+          <div
+            key={m.id}
+            className={`p-3.5 rounded-xl text-sm leading-relaxed max-w-[85%] ${
+              m.role === "user"
+                ? "bg-red-600 text-white self-end rounded-br-none"
+                : "bg-[#334155] text-slate-100 self-start rounded-bl-none border border-slate-700"
+            }`}
+          >
+            <div className="text-[10px] uppercase font-semibold tracking-wider text-slate-300 mb-1">
+              {m.role === "user" ? "You" : "Game Time Assistant"}
             </div>
-          );
-        })}
+            <p className="whitespace-pre-wrap">
+              {m.parts
+                .filter((part) => part.type === "text")
+                .map((part) => part.text)
+                .join("")}
+            </p>
+          </div>
+        ))}
+
+        {/* Display inline error notice if connection fails */}
+        {error && (
+          <div className="p-3 bg-red-950/60 border border-red-800 rounded-xl text-xs text-red-300">
+            Failed to communicate with the assistant. Please try again.
+          </div>
+        )}
       </div>
 
       {/* Input Form */}
