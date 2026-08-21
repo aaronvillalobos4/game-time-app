@@ -87,7 +87,7 @@ export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) 
         <button
           type="submit"
           disabled={isLoading || !input.trim()}
-          className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center min-w-[80px]"
+          className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center min-w-20"
         >
           {isLoading ? (
             <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
