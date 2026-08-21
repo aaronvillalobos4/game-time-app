@@ -6,12 +6,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import ItineraryChat from "@/components/ItineraryChat";
 
-const LOADING_MESSAGES = [
+const FALLBACK_LOADING_MESSAGES = [
   "Scouting ticket prices & stadium sections...",
   "Searching flight routes & travel schedules...",
   "Scouting highly-rated hotels near the venue...",
   "Synthesizing your custom itinerary & budget breakdown...",
-  "Finalizing details (almost ready)..."
+  "Finalizing details (almost ready)...",
 ];
 
 export default function Home() {
@@ -20,31 +20,34 @@ export default function Home() {
   const [departureCity, setDepartureCity] = useState("");
   const [budget, setBudget] = useState("");
   const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
   const [itinerary, setItinerary] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Cycle through loading messages every 6 seconds while waiting
+  // Cycle through default fallback messages if no live SSE status is received
   useEffect(() => {
-    if (!loading) return;
+    if (!loading || statusMessage) return;
 
     setLoadingMsgIndex(0);
 
     const interval = setInterval(() => {
-      setLoadingMsgIndex((prevIndex) => (prevIndex + 1) % LOADING_MESSAGES.length);
+      setLoadingMsgIndex((prevIndex) => (prevIndex + 1) % FALLBACK_LOADING_MESSAGES.length);
     }, 6000);
 
     return () => clearInterval(interval);
-  }, [loading]);
+  }, [loading, statusMessage]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setItinerary(null);
+    setItinerary("");
     setErrorMsg(null);
+    setStatusMessage("Connecting to Game Time planner...");
 
     try {
-      const response = await fetch("https://game-time-f7qt.onrender.com/api/itinerary", {
+      // Endpoint updated to SSE streaming route
+      const response = await fetch("https://game-time-f7qt.onrender.com/api/itinerary-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -59,12 +62,58 @@ export default function Home() {
         throw new Error(`Server returned status ${response.status}`);
       }
 
-      const data = await response.json();
-      
-      if (data.itinerary) {
-        setItinerary(data.itinerary);
-      } else {
-        setItinerary(JSON.stringify(data, null, 2));
+      // Handle raw JSON response fallback if content-type is non-stream
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
+        const data = await response.json();
+        setItinerary(data.itinerary || JSON.stringify(data, null, 2));
+        return;
+      }
+
+      if (!response.body) {
+        throw new Error("No readable stream received from server.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let accumulatedText = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const events = chunk.split("\n\n");
+
+        for (const eventBlock of events) {
+          if (!eventBlock.trim()) continue;
+
+          if (eventBlock.includes("[DONE]")) {
+            setStatusMessage("");
+            continue;
+          }
+
+          if (eventBlock.startsWith("data: ")) {
+            const rawData = eventBlock.replace("data: ", "").trim();
+
+            try {
+              const parsed = JSON.parse(rawData);
+
+              if (parsed.type === "status") {
+                setStatusMessage(parsed.content);
+              } else if (parsed.type === "token") {
+                accumulatedText += parsed.content;
+                setItinerary(accumulatedText);
+              } else if (parsed.type === "error") {
+                throw new Error(parsed.content);
+              }
+            } catch (jsonErr) {
+              // If raw text chunk is passed instead of structured JSON object
+              accumulatedText += rawData;
+              setItinerary(accumulatedText);
+            }
+          }
+        }
       }
     } catch (err: any) {
       console.error("Error generating itinerary:", err);
@@ -73,6 +122,7 @@ export default function Home() {
       );
     } finally {
       setLoading(false);
+      setStatusMessage("");
     }
   };
 
@@ -168,7 +218,7 @@ export default function Home() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                <span>{LOADING_MESSAGES[loadingMsgIndex]}</span>
+                <span>{statusMessage || FALLBACK_LOADING_MESSAGES[loadingMsgIndex]}</span>
               </>
             ) : (
               "Generate Custom Itinerary"
@@ -184,11 +234,16 @@ export default function Home() {
           </div>
         )}
 
-        {/* Formatted Output */}
+        {/* Streaming Formatted Output */}
         {itinerary && (
           <div className="bg-[#1e293b] p-6 sm:p-8 rounded-2xl border border-slate-800 text-left space-y-4 shadow-xl">
-            <h2 className="text-2xl font-bold text-white border-b border-slate-700 pb-3">
-              Your Custom Itinerary
+            <h2 className="text-2xl font-bold text-white border-b border-slate-700 pb-3 flex items-center justify-between">
+              <span>Your Custom Itinerary</span>
+              {loading && (
+                <span className="text-xs text-red-400 font-normal animate-pulse">
+                  Streaming live...
+                </span>
+              )}
             </h2>
             <div className="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed prose-headings:text-white prose-a:text-red-400 prose-table:border-collapse prose-th:bg-slate-800 prose-th:p-2 prose-td:p-2 prose-td:border-b prose-td:border-slate-700">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{itinerary}</ReactMarkdown>
@@ -196,7 +251,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* Interactive Chat Assistant Component */}
+        {/* Interactive Refinement Chat Assistant */}
         <div className="mt-8">
           <ItineraryChat initialItinerary={itinerary} />
         </div>
