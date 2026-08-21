@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import ItineraryChat from "@/components/ItineraryChat";
 
 const LOADING_MESSAGES = [
   "Scouting ticket prices & stadium sections...",
@@ -197,6 +198,25 @@ useEffect(() => {
         )}
 
       </div>
+    </main>
+  );
+}
+
+export default function HomePage() {
+  // Your existing itinerary state or fetched data
+  const currentItinerary = { /* generated itinerary data */ };
+
+  return (
+    <main className="container mx-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Existing Itinerary UI */}
+      <section className="itinerary-display">
+        {/* Your Custom Itinerary Render logic */}
+      </section>
+
+      {/* New Interactive Chat UI */}
+      <section className="chat-refinement">
+        <ItineraryChat initialItinerary={currentItinerary} />
+      </section>
     </main>
   );
 }
