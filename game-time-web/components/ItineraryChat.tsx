@@ -1,6 +1,6 @@
 "use client";
-
-import { useChat, Message } from "ai/react";
+import { useChat } from "@ai-sdk/react";
+import { Message } from "ai";
 
 interface ItineraryChatProps {
   initialItinerary: string | null;
@@ -55,7 +55,7 @@ export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) 
         />
         <button
           type="submit"
-          disabled={isLoading || !input.trim()}
+          disabled={isLoading || !input?.trim()}
           className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors flex items-center justify-center min-w-[80px]"
         >
           {isLoading ? (

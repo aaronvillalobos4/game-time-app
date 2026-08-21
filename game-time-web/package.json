@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/react": "^4.0.77",
     "ai": "^7.0.74",
     "next": "16.2.12",
     "react": "19.2.4",
@@ -30,6 +31,8 @@
   "allowScripts": {
     "react-markdown@10.1.0": true,
     "@tailwindcss/typography@0.5.20": true,
-    "remark-gfm@4.0.1": true
+    "remark-gfm@4.0.1": true,
+    "ai@7.0.74": true,
+    "@ai-sdk/react@4.0.77": true
   }
 }
