@@ -4,6 +4,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from agents import TravelCrew
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from typing import List, Dict, Any
 
 load_dotenv()
 
@@ -26,6 +30,28 @@ class TripRequest(BaseModel):
     departure_city: str
     budget: str
 
+#Chat Request Data Model capturing message history and active itinerary
+class RefinementRequest(BaseModel):
+    session_id: str
+    messages: List[Dict[str, str]]  # [{'role': 'user', 'content': 'Change hotel to...'}, ...]
+    current_itinerary: Dict[str, Any]  # The existing generated JSON/data state
+
+async def stream_itinerary_updates(messages: List[Dict[str, str]], current_itinerary: Dict[str, Any]):
+    user_instruction = messages[-1]["content"]
+    
+    # 1. Pass 'user_instruction' + 'current_itinerary' to your Refinement Agent
+    # 2. Yield text tokens or updated JSON state as the agent processes
+    yield f"data: Updating your itinerary based on: '{user_instruction}'...\n\n"
+    
+    # Example token yield...
+    yield "data: [DONE]\n\n"
+
+@app.post("/api/chat")
+async def chat_endpoint(request: RefinementRequest):
+    return StreamingResponse(
+        stream_itinerary_updates(request.messages, request.current_itinerary),
+        media_type="text/event-stream"
+    )
 
 @app.get("/health")
 async def health_check():
