@@ -24,19 +24,18 @@ export default function Home() {
   const [itinerary, setItinerary] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-// Cycle through loading messages every 6 seconds while waiting
-useEffect(() => {
-  if (!loading) return;
+  // Cycle through loading messages every 6 seconds while waiting
+  useEffect(() => {
+    if (!loading) return;
 
-  // Reset to first message when loading starts
-  setLoadingMsgIndex(0);
+    setLoadingMsgIndex(0);
 
-  const interval = setInterval(() => {
-    setLoadingMsgIndex((prevIndex) => (prevIndex + 1) % LOADING_MESSAGES.length);
-  }, 6000);
+    const interval = setInterval(() => {
+      setLoadingMsgIndex((prevIndex) => (prevIndex + 1) % LOADING_MESSAGES.length);
+    }, 6000);
 
-  return () => clearInterval(interval);
-}, [loading]);
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,26 +196,12 @@ useEffect(() => {
           </div>
         )}
 
+        {/* Interactive Chat Assistant Component */}
+        <div className="mt-8">
+          <ItineraryChat initialItinerary={itinerary} />
+        </div>
+
       </div>
-    </main>
-  );
-}
-
-export default function HomePage() {
-  // Your existing itinerary state or fetched data
-  const currentItinerary = { /* generated itinerary data */ };
-
-  return (
-    <main className="container mx-auto p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-      {/* Existing Itinerary UI */}
-      <section className="itinerary-display">
-        {/* Your Custom Itinerary Render logic */}
-      </section>
-
-      {/* New Interactive Chat UI */}
-      <section className="chat-refinement">
-        <ItineraryChat initialItinerary={currentItinerary} />
-      </section>
     </main>
   );
 }
