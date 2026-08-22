@@ -112,7 +112,7 @@ async def generate_itinerary_stream(req: ItineraryRequest):
 
 @app.post("/api/chat")
 async def chat_endpoint(payload: ChatPayload):
-    """Refinement chat endpoint handling AI SDK protocol streaming responses."""
+    """Refinement chat endpoint formatted for Vercel AI SDK Data Stream protocol."""
     
     system_prompt = (
         "You are an expert sports travel assistant for Game Time. "
@@ -139,7 +139,7 @@ async def chat_endpoint(payload: ChatPayload):
             async for chunk in response:
                 content = chunk.choices[0].delta.content or ""
                 if content:
-                    # Formatted according to Vercel AI SDK text protocol (0:"text")
+                    # Format as AI SDK Data Stream Text Part (0:"content\n")
                     yield f'0:{json.dumps(content)}\n'
 
         except Exception as e:
@@ -148,10 +148,11 @@ async def chat_endpoint(payload: ChatPayload):
 
     return StreamingResponse(
         generate_response(),
-        media_type="text/plain; charset=utf-8",
+        media_type="text/x-unknown",  # Required by Vercel AI SDK Data Stream protocol
         headers={
             "X-Accel-Buffering": "no",
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
+            "x-vercel-ai-ui-stream": "v1",  # Signals v1 Data Stream protocol
         },
     )
