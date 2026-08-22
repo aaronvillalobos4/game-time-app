@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 # Import your agent crew runner/function from agents.py
-from agents import run_crew  # Adjust to match your function/class name in agents.py (e.g., GameTimeCrew)
+from agents import TravelCrew  # Adjust to match your function/class name in agents.py (e.g., GameTimeCrew)
 
 app = FastAPI(redirect_slashes=True)
 
@@ -60,8 +60,8 @@ async def generate_itinerary_stream(req: ItineraryRequest):
         }
 
         # 3. Execute agents asynchronously (prevents blocking the streaming thread)
-        # Replace `run_crew(inputs)` with your exact function or `GameTimeCrew().crew().kickoff(inputs=inputs)`
-        result = await asyncio.to_thread(run_crew, inputs)
+        # Replace with your exact function or `GameTimeCrew().crew().kickoff(inputs=inputs)`
+        result = await asyncio.to_thread(TravelCrew().crew().kickoff, inputs)
         result_text = str(result)
 
         # 4. Stream final agent token output to UI
