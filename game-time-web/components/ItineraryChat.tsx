@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useChat, UIMessage } from "@ai-sdk/react";
+import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 
 interface ItineraryChatProps {
@@ -10,7 +10,7 @@ interface ItineraryChatProps {
 
 export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) {
   const [input, setInput] = useState("");
-  
+
   const { messages, sendMessage, status, error } = useChat({
     transport: new DefaultChatTransport({
       api: "https://game-time-f7qt.onrender.com/api/chat",
@@ -22,15 +22,16 @@ export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) 
       console.error("ItineraryChat error:", err);
     },
   });
-
   const isLoading = status === "submitted" || status === "streaming";
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    sendMessage({ text: input });
+    const userText = input;
     setInput("");
+
+    await sendMessage({ text: userText });
   };
 
   return (
@@ -47,7 +48,7 @@ export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) 
           </p>
         )}
 
-        {messages.map((m: UIMessage) => (
+        {messages.map((m) => (
           <div
             key={m.id}
             className={`p-3.5 rounded-xl text-sm leading-relaxed max-w-[85%] ${
@@ -59,19 +60,18 @@ export default function ItineraryChat({ initialItinerary }: ItineraryChatProps) 
             <div className="text-[10px] uppercase font-semibold tracking-wider text-slate-300 mb-1">
               {m.role === "user" ? "You" : "Game Time Assistant"}
             </div>
-            <p className="whitespace-pre-wrap">
-              {m.parts
-                .filter((part) => part.type === "text")
-                .map((part) => part.text)
-                .join("")}
-            </p>
+            <div className="whitespace-pre-wrap">
+              {m.parts.map((part, index) =>
+                part.type === "text" ? <span key={index}>{part.text}</span> : null,
+              )}
+            </div>
           </div>
         ))}
 
         {/* Display inline error notice if connection fails */}
         {error && (
           <div className="p-3 bg-red-950/60 border border-red-800 rounded-xl text-xs text-red-300">
-            Failed to communicate with the assistant. Please try again.
+            Failed to communicate with the assistant. Ensure OPENAI_API_KEY is configured on Render.
           </div>
         )}
       </div>
