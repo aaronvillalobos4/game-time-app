@@ -1,12 +1,16 @@
 import json
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+# Import your CrewAI setup/crew module here
+# Import your actual Crew class:
+from crew import GameTimeCrew
+
 app = FastAPI(redirect_slashes=True)
 
-# CORS Configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -19,53 +23,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ------------------------------------------------------------------
-# Request Models
-# ------------------------------------------------------------------
 class ItineraryRequest(BaseModel):
     event: str
     date: str
     departure_city: str
     budget: float | int | str
 
-class ChatPayload(BaseModel):
-    messages: list = []
-    currentItinerary: str | None = None
-
-
-# ------------------------------------------------------------------
-# Routes
-# ------------------------------------------------------------------
-@app.get("/")
-@app.head("/")
-def read_root():
-    """Health check for Render service deployment."""
-    return {"status": "Game Time API is running"}
-
-
 @app.post("/api/itinerary-stream")
 @app.post("/generate-itinerary")
 async def generate_itinerary_stream(req: ItineraryRequest):
-    """Handles the form submission with Server-Sent Events (SSE) streaming."""
+    """Executes CrewAI agents and streams live status updates & token results."""
     async def event_generator():
-        # 1. Send status updates
-        yield f"data: {json.dumps({'type': 'status', 'content': 'Scouting flights and hotels...'})}\n\n"
+        # 1. Send initial status message
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Scouting ticket prices & stadium sections...'})}\n\n"
+        await asyncio.sleep(2) # Give UI time to render status
+
+        # 2. Update status for flight/hotel search
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Searching flight routes & accommodation...'})}\n\n"
         
-        # 2. Stream itinerary content tokens
-        sample_itinerary = (
-            f"# Custom Itinerary for {req.event}\n\n"
-            f"- **Date:** {req.date}\n"
-            f"- **Departure:** {req.departure_city}\n"
-            f"- **Budget:** ${req.budget}\n\n"
-            f"### Flight & Hotel Details\n"
-            f"Here are the top options scouted for your trip..."
-        )
+        # 3. Kick off your CrewAI Kickoff task
+        inputs = {
+            'event': req.event,
+            'date': req.date,
+            'departure_city': req.departure_city,
+            'budget': str(req.budget)
+        }
         
-        for word in sample_itinerary.split():
-            token_payload = json.dumps({'type': 'token', 'content': f"{word} "})
-            yield f"data: {token_payload}\n\n"
+        # Run synchronous CrewAI kickoff in an async thread pool
+        # result = await asyncio.to_thread(GameTimeCrew().crew().kickoff, inputs=inputs)
+        # result_text = str(result)
+
+        # 4. Final status update before streaming output
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Synthesizing your custom itinerary...'})}\n\n"
+        await asyncio.sleep(1)
+
+        # 5. Stream the CrewAI output tokens to frontend
+        # (Replace `result_text` with your actual crew result)
+        result_text = f"# Custom Itinerary for {req.event}\n\nDetailed breakdown..."
+        for chunk in result_text.split(" "):
+            yield f"data: {json.dumps({'type': 'token', 'content': chunk + ' '})}\n\n"
+            await asyncio.sleep(0.02)
             
-        # 3. Stream completion signal
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -76,24 +74,4 @@ async def generate_itinerary_stream(req: ItineraryRequest):
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
         },
-    )
-
-
-@app.post("/api/chat")
-async def chat_endpoint(payload: ChatPayload):
-    """Handles refinement chat messages."""
-    user_message = ""
-    if payload.messages:
-        user_message = payload.messages[-1].get("content", "")
-
-    async def generate_response():
-        response_text = f"Updating itinerary based on request: '{user_message}'"
-        for word in response_text.split():
-            chunk = f"{word} "
-            yield f"0:{json.dumps(chunk)}\n"
-
-    return StreamingResponse(
-        generate_response(),
-        media_type="text/plain",
-        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"}
     )
