@@ -53,13 +53,14 @@ export default function ItineraryChat({ initialItinerary, currentItinerary }: It
         }),
       });
 
-      if (!response.ok) throw new Error("Network response was not ok");
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
       const data = await response.json();
-      
+      const replyText = typeof data.content === "string" ? data.content : JSON.stringify(data.content);
+
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.content || "No response generated." },
+        { role: "assistant", content: replyText || "I've reviewed your request." },
       ]);
     } catch (error) {
       console.error("Chat error:", error);
@@ -67,7 +68,7 @@ export default function ItineraryChat({ initialItinerary, currentItinerary }: It
         ...prev,
         {
           role: "assistant",
-          content: "Sorry, I couldn't refine your trip right now. Please try again.",
+          content: "Sorry, I couldn't refine your trip right now. Please try sending your message again.",
         },
       ]);
     } finally {
