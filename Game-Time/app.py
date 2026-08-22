@@ -1,9 +1,11 @@
+import os
 import json
 import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from openai import AsyncOpenAI
 
 # Import TravelCrew from agents.py
 from agents import TravelCrew
@@ -25,9 +27,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize OpenAI Client
+client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
 
 # ------------------------------------------------------------------
-# Request & Response Data Models
+# Request Data Models
 # ------------------------------------------------------------------
 class ItineraryRequest(BaseModel):
     event: str
@@ -36,8 +41,13 @@ class ItineraryRequest(BaseModel):
     budget: float | int | str
 
 
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
 class ChatPayload(BaseModel):
-    messages: list = []
+    messages: list[ChatMessage] = []
     currentItinerary: str | None = None
 
 
@@ -56,7 +66,6 @@ def read_root():
 async def generate_itinerary_stream(req: ItineraryRequest):
     """Executes TravelCrew agents and streams live status updates & final results."""
     async def event_generator():
-        # 1. Send initial status updates to UI
         yield f"data: {json.dumps({'type': 'status', 'content': 'Scouting ticket prices & stadium sections...'})}\n\n"
         await asyncio.sleep(0.5)
 
@@ -66,7 +75,6 @@ async def generate_itinerary_stream(req: ItineraryRequest):
         yield f"data: {json.dumps({'type': 'status', 'content': 'Locating highly-rated hotels near the venue...'})}\n\n"
         await asyncio.sleep(0.5)
 
-        # 2. Map frontend inputs to TravelCrew dictionary keys
         inputs = {
             "game": req.event,
             "date": req.date,
@@ -74,12 +82,10 @@ async def generate_itinerary_stream(req: ItineraryRequest):
             "budget": str(req.budget),
         }
 
-        # 3. Final status frame before running CrewAI pipeline
         yield f"data: {json.dumps({'type': 'status', 'content': 'Synthesizing custom itinerary with agents...'})}\n\n"
         await asyncio.sleep(0.5)
 
         try:
-            # Instantiate TravelCrew and run crew.kickoff_async()
             crew_instance = TravelCrew(inputs=inputs)
             result = await crew_instance.run()
             result_text = str(result)
@@ -87,12 +93,10 @@ async def generate_itinerary_stream(req: ItineraryRequest):
             yield f"data: {json.dumps({'type': 'error', 'content': f'Agent execution failed: {str(e)}'})}\n\n"
             return
 
-        # 4. Stream final synthesized itinerary output to UI
         for word in result_text.split(" "):
             yield f"data: {json.dumps({'type': 'token', 'content': word + ' '})}\n\n"
             await asyncio.sleep(0.01)
 
-        # 5. Signal streaming completion
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -108,20 +112,43 @@ async def generate_itinerary_stream(req: ItineraryRequest):
 
 @app.post("/api/chat")
 async def chat_endpoint(payload: ChatPayload):
-    """Refinement chat endpoint for AI SDK streaming responses."""
-    user_message = ""
-    if payload.messages:
-        user_message = payload.messages[-1].get("content", "")
+    """Refinement chat endpoint handling AI SDK protocol streaming responses."""
+    
+    system_prompt = (
+        "You are an expert sports travel assistant for Game Time. "
+        "Your task is to refine and modify the user's existing trip itinerary based on their questions or requested changes "
+        "(e.g., swapping flight times, changing hotel tiers, adjusting budgets, or adding local spot recommendations). "
+        "Keep responses clear, concise, and formatted in clean Markdown."
+    )
+
+    if payload.currentItinerary:
+        system_prompt += f"\n\nCURRENT ITINERARY CONTEXT:\n{payload.currentItinerary}"
+
+    formatted_messages = [{"role": "system", "content": system_prompt}]
+    for msg in payload.messages:
+        formatted_messages.append({"role": msg.role, "content": msg.content})
 
     async def generate_response():
-        response_text = f"Updating itinerary based on request: '{user_message}'"
-        for word in response_text.split():
-            chunk = f"{word} "
-            yield f"0:{json.dumps(chunk)}\n"
+        try:
+            response = await client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=formatted_messages,
+                stream=True,
+            )
+
+            async for chunk in response:
+                content = chunk.choices[0].delta.content or ""
+                if content:
+                    # Formatted according to Vercel AI SDK text protocol (0:"text")
+                    yield f'0:{json.dumps(content)}\n'
+
+        except Exception as e:
+            err_msg = f"Error refining itinerary: {str(e)}"
+            yield f'0:{json.dumps(err_msg)}\n'
 
     return StreamingResponse(
         generate_response(),
-        media_type="text/plain",
+        media_type="text/plain; charset=utf-8",
         headers={
             "X-Accel-Buffering": "no",
             "Cache-Control": "no-cache",
