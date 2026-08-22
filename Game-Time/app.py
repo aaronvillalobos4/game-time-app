@@ -25,6 +25,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["x-vercel-ai-ui-stream"],
 )
 
 # Initialize OpenAI Client
@@ -41,17 +42,12 @@ class ItineraryRequest(BaseModel):
     budget: float | int | str
 
 
-class ChatMessage(BaseModel):
-    role: str
-    content: str
-
-
 class ChatPayload(BaseModel):
     messages: list[dict] = []
     currentItinerary: str | None = None
 
     class Config:
-        extra = "allow"  # Allows extra payload metadata sent by AI SDK v5
+        extra = "allow"  # Allows extra metadata sent by Vercel AI SDK v5
 
 
 # ------------------------------------------------------------------
