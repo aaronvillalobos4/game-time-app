@@ -5,11 +5,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-# Import your agent crew runner/function from agents.py
-from agents import TravelCrew  # Adjust to match your function/class name in agents.py (e.g., GameTimeCrew)
+# Import TravelCrew from agents.py
+from agents import TravelCrew
 
 app = FastAPI(redirect_slashes=True)
 
+# ------------------------------------------------------------------
+# CORS Setup
+# ------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -22,53 +25,74 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ------------------------------------------------------------------
+# Request & Response Data Models
+# ------------------------------------------------------------------
 class ItineraryRequest(BaseModel):
     event: str
     date: str
     departure_city: str
     budget: float | int | str
 
+
 class ChatPayload(BaseModel):
     messages: list = []
     currentItinerary: str | None = None
 
+
+# ------------------------------------------------------------------
+# Endpoints
+# ------------------------------------------------------------------
 @app.get("/")
 @app.head("/")
 def read_root():
+    """Health check endpoint for Render service deployment verification."""
     return {"status": "Game Time API is running"}
+
 
 @app.post("/api/itinerary-stream")
 @app.post("/generate-itinerary")
 async def generate_itinerary_stream(req: ItineraryRequest):
-    """Executes CrewAI agents in a background thread while streaming real-time status & results."""
+    """Executes TravelCrew agents and streams live status updates & final results."""
     async def event_generator():
-        # 1. Send status updates to frontend while agents prepare
+        # 1. Send initial status updates to UI
         yield f"data: {json.dumps({'type': 'status', 'content': 'Scouting ticket prices & stadium sections...'})}\n\n"
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
 
         yield f"data: {json.dumps({'type': 'status', 'content': 'Searching flight routes & travel schedules...'})}\n\n"
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
 
-        yield f"data: {json.dumps({'type': 'status', 'content': 'Synthesizing custom itinerary & budget breakdown...'})}\n\n"
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Locating highly-rated hotels near the venue...'})}\n\n"
+        await asyncio.sleep(0.5)
 
-        # 2. Prepare inputs for your agents
+        # 2. Map frontend inputs to TravelCrew dictionary keys
         inputs = {
-            'event': req.event,
-            'date': req.date,
-            'departure_city': req.departure_city,
-            'budget': str(req.budget)
+            "game": req.event,
+            "date": req.date,
+            "origin": req.departure_city,
+            "budget": str(req.budget),
         }
 
-        # 3. Execute agents asynchronously (prevents blocking the streaming thread)
-        # Replace with your exact function or `GameTimeCrew().crew().kickoff(inputs=inputs)`
-        result = await asyncio.to_thread(TravelCrew().crew().kickoff, inputs)
-        result_text = str(result)
+        # 3. Final status frame before running CrewAI pipeline
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Synthesizing custom itinerary with agents...'})}\n\n"
+        await asyncio.sleep(0.5)
 
-        # 4. Stream final agent token output to UI
+        try:
+            # Instantiate TravelCrew and run crew.kickoff_async()
+            crew_instance = TravelCrew(inputs=inputs)
+            result = await crew_instance.run()
+            result_text = str(result)
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'content': f'Agent execution failed: {str(e)}'})}\n\n"
+            return
+
+        # 4. Stream final synthesized itinerary output to UI
         for word in result_text.split(" "):
             yield f"data: {json.dumps({'type': 'token', 'content': word + ' '})}\n\n"
             await asyncio.sleep(0.01)
 
+        # 5. Signal streaming completion
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -81,8 +105,10 @@ async def generate_itinerary_stream(req: ItineraryRequest):
         },
     )
 
+
 @app.post("/api/chat")
 async def chat_endpoint(payload: ChatPayload):
+    """Refinement chat endpoint for AI SDK streaming responses."""
     user_message = ""
     if payload.messages:
         user_message = payload.messages[-1].get("content", "")
@@ -96,5 +122,9 @@ async def chat_endpoint(payload: ChatPayload):
     return StreamingResponse(
         generate_response(),
         media_type="text/plain",
-        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"}
+        headers={
+            "X-Accel-Buffering": "no",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
     )

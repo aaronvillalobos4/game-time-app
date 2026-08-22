@@ -45,8 +45,10 @@ export default function Home() {
     setErrorMsg(null);
     setStatusMessage("Connecting to Game Time planner...");
 
+    // Clean currency symbols or formatting from input before sending
+    const numericBudget = parseFloat(budget.replace(/[^0-9.]/g, "")) || budget;
+
     try {
-      // Endpoint updated to SSE streaming route
       const response = await fetch("https://game-time-f7qt.onrender.com/api/itinerary-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -54,12 +56,13 @@ export default function Home() {
           event,
           date,
           departure_city: departureCity,
-          budget,
+          budget: numericBudget,
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`Server returned status ${response.status}`);
+        const errText = await response.text();
+        throw new Error(`Server returned status ${response.status}: ${errText}`);
       }
 
       // Handle raw JSON response fallback if content-type is non-stream
@@ -76,7 +79,6 @@ export default function Home() {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
-      let accumulatedText = "";
 
       while (true) {
         const { value, done } = await reader.read();
@@ -93,8 +95,9 @@ export default function Home() {
             continue;
           }
 
-          if (eventBlock.startsWith("data: ")) {
-            const rawData = eventBlock.replace("data: ", "").trim();
+          const line = eventBlock.trim();
+          if (line.startsWith("data: ")) {
+            const rawData = line.replace("data: ", "").trim();
 
             try {
               const parsed = JSON.parse(rawData);
@@ -102,15 +105,14 @@ export default function Home() {
               if (parsed.type === "status") {
                 setStatusMessage(parsed.content);
               } else if (parsed.type === "token") {
-                accumulatedText += parsed.content;
-                setItinerary(accumulatedText);
+                // Functional state updater to prevent dropped tokens during renders
+                setItinerary((prev) => (prev || "") + parsed.content);
               } else if (parsed.type === "error") {
                 throw new Error(parsed.content);
               }
             } catch (jsonErr) {
-              // If raw text chunk is passed instead of structured JSON object
-              accumulatedText += rawData;
-              setItinerary(accumulatedText);
+              // Fallback for raw text chunking
+              setItinerary((prev) => (prev || "") + rawData);
             }
           }
         }
