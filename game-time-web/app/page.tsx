@@ -255,7 +255,7 @@ export default function Home() {
 
         {/* Interactive Refinement Chat Assistant */}
         <div className="mt-8">
-          <ItineraryChat initialItinerary={itinerary} />
+          <ItineraryChat />
         </div>
 
       </div>
