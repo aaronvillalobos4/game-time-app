@@ -3,7 +3,6 @@ import json
 import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from openai import AsyncOpenAI
 
@@ -25,7 +24,6 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["x-vercel-ai-ui-stream"],
 )
 
 # Initialize OpenAI Client
@@ -47,7 +45,7 @@ class ChatPayload(BaseModel):
     currentItinerary: str | None = None
 
     class Config:
-        extra = "allow"  # Allows extra metadata sent by Vercel AI SDK v5
+        extra = "allow"
 
 
 # ------------------------------------------------------------------
@@ -98,6 +96,7 @@ async def generate_itinerary_stream(req: ItineraryRequest):
 
         yield "data: [DONE]\n\n"
 
+    from fastapi.responses import StreamingResponse
     return StreamingResponse(
         event_generator(),
         media_type="text/event-stream",
@@ -111,7 +110,7 @@ async def generate_itinerary_stream(req: ItineraryRequest):
 
 @app.post("/api/chat")
 async def chat_endpoint(payload: ChatPayload):
-    """Refinement chat endpoint formatted for Vercel AI SDK protocol."""
+    """Refinement chat endpoint using standard non-streaming JSON."""
     
     system_prompt = (
         "You are an expert sports travel assistant for Game Time. "
@@ -129,31 +128,13 @@ async def chat_endpoint(payload: ChatPayload):
         content = msg.get("content", "") if isinstance(msg, dict) else getattr(msg, "content", "")
         formatted_messages.append({"role": role, "content": content})
 
-    async def generate_response():
-        try:
-            response = await client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=formatted_messages,
-                stream=True,
-            )
-
-            async for chunk in response:
-                content = chunk.choices[0].delta.content or ""
-                if content:
-                    # AI SDK v5 Protocol Text Frame (0:"content\n")
-                    yield f'0:{json.dumps(content)}\n'
-
-        except Exception as e:
-            err_msg = f"Error refining itinerary: {str(e)}"
-            yield f'0:{json.dumps(err_msg)}\n'
-
-    return StreamingResponse(
-        generate_response(),
-        media_type="text/plain; charset=utf-8",
-        headers={
-            "X-Accel-Buffering": "no",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "x-vercel-ai-ui-stream": "v1",
-        },
-    )
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=formatted_messages,
+            stream=False,
+        )
+        reply = response.choices[0].message.content
+        return {"role": "assistant", "content": reply}
+    except Exception as e:
+        return {"role": "assistant", "content": f"Error refining itinerary: {str(e)}"}
