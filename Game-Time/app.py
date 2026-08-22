@@ -115,7 +115,7 @@ async def generate_itinerary_stream(req: ItineraryRequest):
 
 @app.post("/api/chat")
 async def chat_endpoint(payload: ChatPayload):
-    """Refinement chat endpoint supporting AI SDK v5 streaming responses."""
+    """Refinement chat endpoint formatted for Vercel AI SDK protocol."""
     
     system_prompt = (
         "You are an expert sports travel assistant for Game Time. "
@@ -129,8 +129,8 @@ async def chat_endpoint(payload: ChatPayload):
 
     formatted_messages = [{"role": "system", "content": system_prompt}]
     for msg in payload.messages:
-        role = msg.get("role", "user")
-        content = msg.get("content", "")
+        role = msg.get("role", "user") if isinstance(msg, dict) else getattr(msg, "role", "user")
+        content = msg.get("content", "") if isinstance(msg, dict) else getattr(msg, "content", "")
         formatted_messages.append({"role": role, "content": content})
 
     async def generate_response():
@@ -153,7 +153,7 @@ async def chat_endpoint(payload: ChatPayload):
 
     return StreamingResponse(
         generate_response(),
-        media_type="text/x-unknown",
+        media_type="text/plain; charset=utf-8",
         headers={
             "X-Accel-Buffering": "no",
             "Cache-Control": "no-cache",
