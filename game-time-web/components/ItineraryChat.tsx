@@ -8,14 +8,17 @@ interface Message {
 }
 
 interface ItineraryChatProps {
-  currentItinerary?: string;
+  initialItinerary?: string | null;
+  currentItinerary?: string | null;
 }
 
-export default function ItineraryChat({ currentItinerary }: ItineraryChatProps) {
+export default function ItineraryChat({ initialItinerary, currentItinerary }: ItineraryChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const activeItinerary = currentItinerary || initialItinerary || "";
 
   const quickPrompts = [
     "Lower hotel tier",
@@ -24,7 +27,6 @@ export default function ItineraryChat({ currentItinerary }: ItineraryChatProps) 
     "Find sports bars near stadium",
   ];
 
-  // Auto-scroll chat to latest message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -47,20 +49,20 @@ export default function ItineraryChat({ currentItinerary }: ItineraryChatProps) 
         },
         body: JSON.stringify({
           messages: updatedMessages,
-          currentItinerary: currentItinerary || "",
+          currentItinerary: activeItinerary,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch response");
-      }
+      if (!response.ok) throw new Error("Network response was not ok");
 
       const data = await response.json();
+      
       setMessages((prev) => [
         ...prev,
         { role: "assistant", content: data.content || "No response generated." },
       ]);
     } catch (error) {
+      console.error("Chat error:", error);
       setMessages((prev) => [
         ...prev,
         {
@@ -79,7 +81,7 @@ export default function ItineraryChat({ currentItinerary }: ItineraryChatProps) 
   };
 
   return (
-    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mt-8 shadow-xl">
+    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 mt-8 shadow-xl text-left">
       <div className="mb-4">
         <h3 className="text-xl font-bold text-white">Refine Your Trip</h3>
         <p className="text-sm text-slate-400 mt-1">
@@ -87,7 +89,6 @@ export default function ItineraryChat({ currentItinerary }: ItineraryChatProps) 
         </p>
       </div>
 
-      {/* Quick Suggestion Chips */}
       <div className="flex flex-wrap gap-2 mb-4">
         {quickPrompts.map((prompt, idx) => (
           <button
@@ -102,8 +103,7 @@ export default function ItineraryChat({ currentItinerary }: ItineraryChatProps) 
         ))}
       </div>
 
-      {/* Messages Window */}
-      <div className="space-y-4 mb-4 max-h-96 overflow-y-auto p-2 bg-slate-900/50 rounded-lg border border-slate-800">
+      <div className="space-y-4 mb-4 max-h-96 overflow-y-auto p-3 bg-slate-900/50 rounded-lg border border-slate-800">
         {messages.length === 0 && (
           <div className="text-center text-slate-500 py-6 text-sm">
             No refinements requested yet. Click a suggestion or ask a question below!
@@ -135,7 +135,6 @@ export default function ItineraryChat({ currentItinerary }: ItineraryChatProps) 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           type="text"
