@@ -5,9 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-# Import your CrewAI setup/crew module here
-# Import your actual Crew class:
-from crew import GameTimeCrew
+# Import your agent crew runner/function from agents.py
+from agents import run_crew  # Adjust to match your function/class name in agents.py (e.g., GameTimeCrew)
 
 app = FastAPI(redirect_slashes=True)
 
@@ -29,41 +28,47 @@ class ItineraryRequest(BaseModel):
     departure_city: str
     budget: float | int | str
 
+class ChatPayload(BaseModel):
+    messages: list = []
+    currentItinerary: str | None = None
+
+@app.get("/")
+@app.head("/")
+def read_root():
+    return {"status": "Game Time API is running"}
+
 @app.post("/api/itinerary-stream")
 @app.post("/generate-itinerary")
 async def generate_itinerary_stream(req: ItineraryRequest):
-    """Executes CrewAI agents and streams live status updates & token results."""
+    """Executes CrewAI agents in a background thread while streaming real-time status & results."""
     async def event_generator():
-        # 1. Send initial status message
+        # 1. Send status updates to frontend while agents prepare
         yield f"data: {json.dumps({'type': 'status', 'content': 'Scouting ticket prices & stadium sections...'})}\n\n"
-        await asyncio.sleep(2) # Give UI time to render status
+        await asyncio.sleep(1)
 
-        # 2. Update status for flight/hotel search
-        yield f"data: {json.dumps({'type': 'status', 'content': 'Searching flight routes & accommodation...'})}\n\n"
-        
-        # 3. Kick off your CrewAI Kickoff task
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Searching flight routes & travel schedules...'})}\n\n"
+        await asyncio.sleep(1)
+
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Synthesizing custom itinerary & budget breakdown...'})}\n\n"
+
+        # 2. Prepare inputs for your agents
         inputs = {
             'event': req.event,
             'date': req.date,
             'departure_city': req.departure_city,
             'budget': str(req.budget)
         }
-        
-        # Run synchronous CrewAI kickoff in an async thread pool
-        # result = await asyncio.to_thread(GameTimeCrew().crew().kickoff, inputs=inputs)
-        # result_text = str(result)
 
-        # 4. Final status update before streaming output
-        yield f"data: {json.dumps({'type': 'status', 'content': 'Synthesizing your custom itinerary...'})}\n\n"
-        await asyncio.sleep(1)
+        # 3. Execute agents asynchronously (prevents blocking the streaming thread)
+        # Replace `run_crew(inputs)` with your exact function or `GameTimeCrew().crew().kickoff(inputs=inputs)`
+        result = await asyncio.to_thread(run_crew, inputs)
+        result_text = str(result)
 
-        # 5. Stream the CrewAI output tokens to frontend
-        # (Replace `result_text` with your actual crew result)
-        result_text = f"# Custom Itinerary for {req.event}\n\nDetailed breakdown..."
-        for chunk in result_text.split(" "):
-            yield f"data: {json.dumps({'type': 'token', 'content': chunk + ' '})}\n\n"
-            await asyncio.sleep(0.02)
-            
+        # 4. Stream final agent token output to UI
+        for word in result_text.split(" "):
+            yield f"data: {json.dumps({'type': 'token', 'content': word + ' '})}\n\n"
+            await asyncio.sleep(0.01)
+
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(
@@ -74,4 +79,22 @@ async def generate_itinerary_stream(req: ItineraryRequest):
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
         },
+    )
+
+@app.post("/api/chat")
+async def chat_endpoint(payload: ChatPayload):
+    user_message = ""
+    if payload.messages:
+        user_message = payload.messages[-1].get("content", "")
+
+    async def generate_response():
+        response_text = f"Updating itinerary based on request: '{user_message}'"
+        for word in response_text.split():
+            chunk = f"{word} "
+            yield f"0:{json.dumps(chunk)}\n"
+
+    return StreamingResponse(
+        generate_response(),
+        media_type="text/plain",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"}
     )
