@@ -47,8 +47,11 @@ class ChatMessage(BaseModel):
 
 
 class ChatPayload(BaseModel):
-    messages: list[ChatMessage] = []
+    messages: list[dict] = []
     currentItinerary: str | None = None
+
+    class Config:
+        extra = "allow"  # Allows extra payload metadata sent by AI SDK v5
 
 
 # ------------------------------------------------------------------
@@ -112,7 +115,7 @@ async def generate_itinerary_stream(req: ItineraryRequest):
 
 @app.post("/api/chat")
 async def chat_endpoint(payload: ChatPayload):
-    """Refinement chat endpoint formatted for Vercel AI SDK Data Stream protocol."""
+    """Refinement chat endpoint supporting AI SDK v5 streaming responses."""
     
     system_prompt = (
         "You are an expert sports travel assistant for Game Time. "
@@ -126,7 +129,9 @@ async def chat_endpoint(payload: ChatPayload):
 
     formatted_messages = [{"role": "system", "content": system_prompt}]
     for msg in payload.messages:
-        formatted_messages.append({"role": msg.role, "content": msg.content})
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        formatted_messages.append({"role": role, "content": content})
 
     async def generate_response():
         try:
@@ -139,7 +144,7 @@ async def chat_endpoint(payload: ChatPayload):
             async for chunk in response:
                 content = chunk.choices[0].delta.content or ""
                 if content:
-                    # Format as AI SDK Data Stream Text Part (0:"content\n")
+                    # AI SDK v5 Protocol Text Frame (0:"content\n")
                     yield f'0:{json.dumps(content)}\n'
 
         except Exception as e:
@@ -148,11 +153,11 @@ async def chat_endpoint(payload: ChatPayload):
 
     return StreamingResponse(
         generate_response(),
-        media_type="text/x-unknown",  # Required by Vercel AI SDK Data Stream protocol
+        media_type="text/x-unknown",
         headers={
             "X-Accel-Buffering": "no",
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "x-vercel-ai-ui-stream": "v1",  # Signals v1 Data Stream protocol
+            "x-vercel-ai-ui-stream": "v1",
         },
     )
