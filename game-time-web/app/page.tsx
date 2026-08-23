@@ -193,7 +193,7 @@ useEffect(() => {
                 type="text"
                 value={departureCity}
                 onChange={(e) => setDepartureCity(e.target.value)}
-                placeholder="city, statwe (e.g., Houston, TX)"
+                placeholder="city, state (e.g., Houston, TX)"
                 className="w-full bg-[#334155] border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
                 required
               />
