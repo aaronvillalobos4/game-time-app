@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import ItineraryChat from "@/components/ItineraryChat";
+
+const PROMPT_CHIPS = [
+  "Mavs @ Celtics on March 14 from Austin, TX with $1200 budget",
+  "Cowboys in Dallas on Oct 12 leaving from Houston with $1000 budget",
+  "Missouri State @ Texas A&M on Sept 5 from College Station, TX under $700",
+];
 
 const FALLBACK_LOADING_MESSAGES = [
   "Estimate wait time five minutes...",
@@ -16,76 +21,90 @@ const FALLBACK_LOADING_MESSAGES = [
 ];
 
 export default function Home() {
-  const [event, setEvent] = useState("");
-  const [date, setDate] = useState("");
-  const [departureCity, setDepartureCity] = useState("");
-  const [budget, setBudget] = useState("");
+  const [messages, setMessages] = useState<Array<{ sender: "user" | "bot"; text: string }>>([
+    {
+      sender: "bot",
+      text: "Welcome to Game Time! Where are you headed? Tell me the matchup, dates, departure city, or budget to get started.",
+    },
+  ]);
+  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+  const [slots, setSlots] = useState<{
+    event?: string | null;
+    date?: string | null;
+    departure_city?: string | null;
+    budget?: number | null;
+  }>({});
   const [itinerary, setItinerary] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-// Cycle through default fallback messages if no live SSE status is received
-useEffect(() => {
-  // Only exit if we have received an explicit live status message from the SSE backend stream
-  if (!loading || statusMessage) return;
+  const handleSend = async (userText: string) => {
+    if (!userText.trim() || loading) return;
 
-  setLoadingMsgIndex(0);
+    const newMessages = [...messages, { sender: "user" as const, text: userText }];
+    setMessages(newMessages);
+    setInput("");
+    setLoading(true);
+    setErrorMsg(null);
 
-  const interval = setInterval(() => {
-    setLoadingMsgIndex((prevIndex) => 
-      prevIndex < FALLBACK_LOADING_MESSAGES.length - 1 ? prevIndex + 1 : prevIndex
-    );
-  }, 5000);
+    try {
+      // 1. Send input to intent parser
+      const parseRes = await fetch("https://game-time-f7qt.onrender.com/api/parse-intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: userText, current_slots: slots }),
+      });
 
-  return () => clearInterval(interval);
-}, [loading, statusMessage]);
-
-  const handleGenerate = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setLoading(true);
-  setItinerary("");
-  setErrorMsg(null);
-  setStatusMessage(""); // Keep empty so the progressive array timer activates right away!
-
-  // 1. Standardize Departure City (trim spaces & handle whitespace)
-  const sanitizedDeparture = departureCity.trim().replace(/\s+/g, " ");
-
-  // 2. Standardize Budget
-  const numericBudget = parseFloat(budget.replace(/[^0-9.]/g, "")) || budget;
-
-  try {
-    const response = await fetch("https://game-time-f7qt.onrender.com/api/itinerary-stream", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event,
-        date,
-        departure_city: sanitizedDeparture, // <--- Pass standardized input here
-        budget: numericBudget,
-      }),
-    });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Server returned status ${response.status}: ${errText}`);
+      if (!parseRes.ok) {
+        throw new Error(`Parse endpoint error: ${parseRes.statusText}`);
       }
 
-      // Handle raw JSON response fallback if content-type is non-stream
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        const data = await response.json();
-        setItinerary(data.itinerary || JSON.stringify(data, null, 2));
+      const parseData = await parseRes.json();
+      const updatedSlots = parseData.slots;
+      setSlots(updatedSlots);
+
+      // If slots are incomplete, ask the follow-up question
+      if (!parseData.is_complete) {
+        setMessages([
+          ...newMessages,
+          { sender: "bot", text: parseData.follow_up_question },
+        ]);
+        setLoading(false);
         return;
       }
 
-      if (!response.body) {
+      // 2. Slots complete: trigger the CrewAI pipeline
+      setMessages([
+        ...newMessages,
+        {
+          sender: "bot",
+          text: `Got all the details! Scouting tickets, flights, and hotels for ${updatedSlots.event} on ${updatedSlots.date}...`,
+        },
+      ]);
+
+      const streamRes = await fetch("https://game-time-f7qt.onrender.com/api/itinerary-stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: updatedSlots.event,
+          date: updatedSlots.date,
+          departure_city: updatedSlots.departure_city,
+          budget: updatedSlots.budget,
+        }),
+      });
+
+      if (!streamRes.ok) {
+        const errText = await streamRes.text();
+        throw new Error(`Server returned status ${streamRes.status}: ${errText}`);
+      }
+
+      if (!streamRes.body) {
         throw new Error("No readable stream received from server.");
       }
 
-      const reader = response.body.getReader();
+      const reader = streamRes.body.getReader();
       const decoder = new TextDecoder("utf-8");
+      setItinerary("");
 
       while (true) {
         const { value, done } = await reader.read();
@@ -97,145 +116,119 @@ useEffect(() => {
         for (const eventBlock of events) {
           if (!eventBlock.trim()) continue;
 
-          if (eventBlock.includes("[DONE]")) {
-            setStatusMessage("");
-            continue;
-          }
+          if (eventBlock.includes("[DONE]")) continue;
 
           const line = eventBlock.trim();
           if (line.startsWith("data: ")) {
             const rawData = line.replace("data: ", "").trim();
-
             try {
               const parsed = JSON.parse(rawData);
-
-              if (parsed.type === "status") {
-                setStatusMessage(parsed.content);
-              } else if (parsed.type === "token") {
-                // Functional state updater to prevent dropped tokens during renders
+              if (parsed.type === "token") {
                 setItinerary((prev) => (prev || "") + parsed.content);
               } else if (parsed.type === "error") {
                 throw new Error(parsed.content);
               }
-            } catch (jsonErr) {
-              // Fallback for raw text chunking
+            } catch {
               setItinerary((prev) => (prev || "") + rawData);
             }
           }
         }
       }
     } catch (err: any) {
-      console.error("Error generating itinerary:", err);
-      setErrorMsg(
-        err.message || "Failed to fetch itinerary. Check backend server connection."
-      );
+      console.error("Error in conversational flow:", err);
+      setErrorMsg(err.message || "Failed to process request. Please check backend connection.");
     } finally {
       setLoading(false);
-      setStatusMessage("");
     }
   };
 
   return (
-    <main className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-3xl text-center space-y-6 my-8">
+    <main className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center p-6">
+      <div className="w-full max-w-3xl space-y-6 my-4">
         
         {/* Header / Brand Logo */}
-        <div className="flex flex-col items-center justify-center gap-3">
+        <div className="flex flex-col items-center justify-center gap-2 text-center">
           <Image
             src="/logo.png"
             alt="Game Time Logo"
-            width={120}
-            height={120}
+            width={100}
+            height={100}
             priority
-            className="h-auto w-auto max-h-24 object-contain"
+            className="h-auto w-auto max-h-20 object-contain"
           />
-          <h1 className="text-4xl font-extrabold tracking-tight text-red-600">
+          <h1 className="text-3xl font-extrabold tracking-tight text-red-600">
             Game Time
           </h1>
+          <p className="text-gray-400 text-xs sm:text-sm">
+            Chat to plan your complete sports trip itinerary.
+          </p>
         </div>
 
-        <p className="text-gray-400 text-sm sm:text-base">
-          Plan your complete sports trip itinerary (tickets, flights, hotels).
-        </p>
+        {/* Chat Stream Window */}
+        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl">
+          {messages.map((m, i) => (
+            <div
+              key={i}
+              className={`p-3 sm:p-4 rounded-xl text-sm max-w-[85%] ${
+                m.sender === "user"
+                  ? "bg-red-600 ml-auto text-white rounded-br-none"
+                  : "bg-[#334155] text-slate-200 rounded-bl-none"
+              }`}
+            >
+              {m.text}
+            </div>
+          ))}
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-red-400 animate-pulse p-2">
+              <span className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
+              Processing trip details...
+            </div>
+          )}
+        </div>
 
-        {/* Form Container */}
-        <form onSubmit={handleGenerate} className="bg-[#1e293b] p-6 rounded-2xl shadow-xl border border-slate-800 text-left space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 mb-1">
-              Game / Event
-            </label>
-            <input
-              type="text"
-              value={event}
-              onChange={(e) => setEvent(e.target.value)}
-              placeholder="e.g. Mavericks @ Celtics"
-              className="w-full bg-[#334155] border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
-              required
-            />
+        {/* One-Shot Prompt Chips */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-400">Try a quick sample trip:</p>
+          <div className="flex flex-wrap gap-2">
+            {PROMPT_CHIPS.map((chip, idx) => (
+              <button
+                key={idx}
+                onClick={() => handleSend(chip)}
+                disabled={loading}
+                className="text-xs bg-[#1e293b] hover:bg-slate-700 text-slate-300 py-2 px-3 rounded-xl border border-slate-700 transition-colors text-left disabled:opacity-50"
+              >
+                + {chip}
+              </button>
+            ))}
           </div>
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">
-                Date
-              </label>
-              <input
-                type="text"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                placeholder="mm/dd/yyyy"
-                className="w-full bg-[#334155] border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">
-                Departure City
-              </label>
-              <input
-                type="text"
-                value={departureCity}
-                onChange={(e) => setDepartureCity(e.target.value)}
-                placeholder="city, state (e.g., Houston, TX)"
-                className="w-full bg-[#334155] border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-400 mb-1">
-                Total Budget
-              </label>
-              <input
-                type="text"
-                value={budget}
-                onChange={(e) => setBudget(e.target.value)}
-                placeholder="$1200"
-                className="w-full bg-[#334155] border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
-                required
-              />
-            </div>
-          </div>
-
+        {/* Input Controls */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSend(input);
+          }}
+          className="flex gap-2"
+        >
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Type your matchup, date, city, or budget..."
+            disabled={loading}
+            className="flex-1 bg-[#1e293b] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold py-3 rounded-lg transition-colors text-sm flex items-center justify-center gap-2"
+            disabled={loading || !input.trim()}
+            className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition-colors text-sm"
           >
-            {loading ? (
-              <>
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>{statusMessage || FALLBACK_LOADING_MESSAGES[loadingMsgIndex]}</span>
-              </>
-            ) : (
-              "Generate Custom Itinerary"
-            )}
+            Send
           </button>
         </form>
 
-        {/* Error Feedback Display */}
+        {/* Error Display */}
         {errorMsg && (
           <div className="bg-red-950/80 border border-red-800 text-red-200 p-4 rounded-xl text-sm text-left">
             <p className="font-semibold">Request Error:</p>
@@ -243,27 +236,17 @@ useEffect(() => {
           </div>
         )}
 
-        {/* Streaming Formatted Output */}
+        {/* Output Itinerary Display */}
         {itinerary && (
           <div className="bg-[#1e293b] p-6 sm:p-8 rounded-2xl border border-slate-800 text-left space-y-4 shadow-xl">
-            <h2 className="text-2xl font-bold text-white border-b border-slate-700 pb-3 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white border-b border-slate-700 pb-3 flex items-center justify-between">
               <span>Your Custom Itinerary</span>
-              {loading && (
-                <span className="text-xs text-red-400 font-normal animate-pulse">
-                  Streaming live...
-                </span>
-              )}
             </h2>
             <div className="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed prose-headings:text-white prose-a:text-red-400 prose-table:border-collapse prose-th:bg-slate-800 prose-th:p-2 prose-td:p-2 prose-td:border-b prose-td:border-slate-700">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{itinerary}</ReactMarkdown>
             </div>
           </div>
         )}
-
-        {/* Interactive Refinement Chat Assistant */}
-        <div className="mt-8">
-          <ItineraryChat />
-        </div>
 
       </div>
     </main>

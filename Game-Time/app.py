@@ -1,146 +1,162 @@
 import os
+import re
 import json
-import asyncio
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from openai import AsyncOpenAI
+from typing import Optional, Dict, Any
 
-# Import TravelCrew from agents.py
+# Import your CrewAI pipeline from agents.py
 from agents import TravelCrew
 
-app = FastAPI(redirect_slashes=True)
+app = FastAPI(title="Game Time API", version="1.0.0")
 
-# ------------------------------------------------------------------
-# CORS Setup
-# ------------------------------------------------------------------
+# Enable CORS for Next.js frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://www.game-time-bot.com",
-        "https://game-time-bot.com",
-        "http://localhost:3000",
-    ],
+    allow_origins=["*"],  # Adjust to specific domain in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize OpenAI Client
-client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+# ==========================================
+# PYDANTIC SCHEMAS
+# ==========================================
+class ChatParseRequest(BaseModel):
+    message: str
+    current_slots: Optional[Dict[str, Any]] = None
 
-# ------------------------------------------------------------------
-# Request Data Models
-# ------------------------------------------------------------------
 class ItineraryRequest(BaseModel):
     event: str
     date: str
     departure_city: str
-    budget: float | int | str
+    budget: float
 
 
-class ChatPayload(BaseModel):
-    messages: list[dict] = []
-    currentItinerary: str | None = None
+# ==========================================
+# 1. CONVERSATIONAL INTENT PARSER ENDPOINT
+# ==========================================
+@app.post("/api/parse-intent")
+async def parse_intent(req: ChatParseRequest):
+    """
+    Extracts event, date, departure city, and budget slots from natural text.
+    Returns follow-up questions for any missing slot.
+    """
+    text = req.message
+    slots = req.current_slots or {
+        "event": None, 
+        "date": None, 
+        "departure_city": None, 
+        "budget": None
+    }
 
-    class Config:
-        extra = "allow"
+    # Extract Budget (e.g., "$1200", "1200 budget", "under 800", "700 bucks")
+    budget_match = re.search(r'\$?(\d{3,5})', text)
+    if budget_match and not slots.get("budget"):
+        try:
+            slots["budget"] = float(budget_match.group(1))
+        except ValueError:
+            pass
 
+    # Extract Date (e.g., "Sept 5", "09/05/2026", "September 5", "March 14")
+    date_match = re.search(
+        r'(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:, \d{4})?|\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 
+        text, 
+        re.IGNORECASE
+    )
+    if date_match and not slots.get("date"):
+        slots["date"] = date_match.group(1)
 
-# ------------------------------------------------------------------
-# Endpoints
-# ------------------------------------------------------------------
-@app.get("/")
-@app.head("/")
-def read_root():
-    """Health check endpoint for Render service deployment verification."""
-    return {"status": "Game Time API is running"}
+    # Extract Departure City (e.g., "from Austin, TX", "flying out of Houston", "leaving College Station")
+    dep_match = re.search(
+        r'(?:from|out of|leaving|departing)\s+([A-Za-z\s]+(?:,\s*[A-Za-z]{2})?)', 
+        text, 
+        re.IGNORECASE
+    )
+    if dep_match and not slots.get("departure_city"):
+        slots["departure_city"] = dep_match.group(1).strip()
 
+    # Extract Event/Matchup fallback if not yet set
+    if not slots.get("event") and ("vs" in text.lower() or "@" in text or "game" in text.lower() or "bears" in text.lower() or "aggies" in text.lower()):
+        # Remove budget, date, and location patterns to leave the game title
+        clean_text = re.sub(
+            r'(\$?(\d{3,5})|from\s+.*|out of\s+.*|on\s+.*|\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 
+            '', 
+            text, 
+            flags=re.IGNORECASE
+        ).strip()
+        slots["event"] = clean_text if clean_text else text
 
-@app.post("/api/itinerary-stream")
-@app.post("/generate-itinerary")
-async def generate_itinerary_stream(req: ItineraryRequest):
-    """Executes TravelCrew agents and streams live status updates & final results."""
-    async def event_generator():
-        yield f"data: {json.dumps({'type': 'status', 'content': 'Scouting ticket prices & stadium sections...'})}\n\n"
-        await asyncio.sleep(0.5)
+    # Check for missing slots in priority order
+    missing = [k for k, v in slots.items() if v is None]
 
-        yield f"data: {json.dumps({'type': 'status', 'content': 'Searching flight routes & travel schedules...'})}\n\n"
-        await asyncio.sleep(0.5)
-
-        yield f"data: {json.dumps({'type': 'status', 'content': 'Locating highly-rated hotels near the venue...'})}\n\n"
-        await asyncio.sleep(0.5)
-
-        inputs = {
-            "game": req.event,
-            "date": req.date,
-            "origin": req.departure_city,
-            "budget": str(req.budget),
+    if not missing:
+        return {
+            "is_complete": True, 
+            "slots": slots, 
+            "follow_up_question": None
         }
 
-        yield f"data: {json.dumps({'type': 'status', 'content': 'Synthesizing custom itinerary with agents...'})}\n\n"
-        await asyncio.sleep(0.5)
+    # Dynamic follow-up questions
+    questions = {
+        "event": "Which game or sports matchup are you planning to see?",
+        "date": f"What date is the {slots.get('event') or 'event'}?",
+        "departure_city": "Where will you be flying or departing from?",
+        "budget": "What is your target total budget for this trip?"
+    }
 
+    return {
+        "is_complete": False,
+        "slots": slots,
+        "follow_up_question": questions[missing[0]]
+    }
+
+
+# ==========================================
+# 2. CREWAI STREAMING ITINERARY ENDPOINT
+# ==========================================
+@app.post("/api/itinerary-stream")
+async def generate_itinerary_stream(req: ItineraryRequest):
+    """
+    Kicks off the CrewAI agent execution pipeline and streams status updates & Markdown output.
+    """
+    inputs = {
+        "game": req.event,
+        "date": req.date,
+        "origin": req.departure_city,
+        "budget": req.budget
+    }
+
+    async def event_generator():
         try:
-            crew_instance = TravelCrew(inputs=inputs)
-            result = await crew_instance.run()
-            result_text = str(result)
+            crew_runner = TravelCrew(inputs)
+            
+            # Send initial SSE status message
+            yield f"data: {json.dumps({'type': 'status', 'content': 'Initializing travel agents...'})}\n\n"
+            
+            # Run async crew kickoff
+            result = await crew_runner.run()
+            
+            # Extract final text output from CrewAI response
+            final_output = str(result)
+            
+            # Stream final Markdown tokens to frontend
+            yield f"data: {json.dumps({'type': 'token', 'content': final_output})}\n\n"
+            yield "data: [DONE]\n\n"
+
         except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'content': f'Agent execution failed: {str(e)}'})}\n\n"
-            return
+            err_msg = json.dumps({"type": "error", "content": str(e)})
+            yield f"data: {err_msg}\n\n"
 
-        for word in result_text.split(" "):
-            yield f"data: {json.dumps({'type': 'token', 'content': word + ' '})}\n\n"
-            await asyncio.sleep(0.01)
-
-        yield "data: [DONE]\n\n"
-
-    from fastapi.responses import StreamingResponse
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "X-Accel-Buffering": "no",
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
-    )
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
-@app.post("/api/chat")
-async def chat_endpoint(payload: ChatPayload):
-    """Refinement chat endpoint using standard non-streaming JSON."""
-    
-    system_prompt = """You are an expert sports travel assistant for Game Time. Your task is to refine and modify the user's existing trip itinerary based on their questions or requested changes (e.g., swapping flight times, changing hotel tiers, adjusting budgets, or adding local spot recommendations). Keep responses clear, concise, and formatted in clean Markdown.
-
-ALWAYS provide the full updated itinerary in your response, even if only a small change was requested, and format it like this:
-## 🎟️ Quick Booking Links
-
-| Category | Option | Booking / Details |
-| :--- | :--- | :--- |
-| **Tickets** | [Event Name] Tickets | [Find Tickets on SeatGeek](https://seatgeek.com) |
-| **Hotel** | [Hotel Name] | [Book on Expedia](https://www.expedia.com) / [Hotels.com](https://www.hotels.com) |
-| **Flights** | [Departure] to [Destination] | [Search Flights on Google Flights](https://www.google.com/travel/flights) |
-
-*Note: Double check availability and prices prior to completing reservations.*"""
-
-    if payload.currentItinerary:
-        system_prompt += f"\n\nCURRENT ITINERARY CONTEXT:\n{payload.currentItinerary}"
-
-    formatted_messages = [{"role": "system", "content": system_prompt}]
-    for msg in payload.messages:
-        role = msg.get("role", "user") if isinstance(msg, dict) else getattr(msg, "role", "user")
-        content = msg.get("content", "") if isinstance(msg, dict) else getattr(msg, "content", "")
-        formatted_messages.append({"role": role, "content": content})
-
-    try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=formatted_messages,
-            stream=False,
-        )
-        reply = response.choices[0].message.content
-        return {"role": "assistant", "content": reply}
-    except Exception as e:
-        return {"role": "assistant", "content": f"Error refining itinerary: {str(e)}"}
+# ==========================================
+# HEALTH CHECK
+# ==========================================
+@app.get("/")
+def read_root():
+    return {"status": "Game Time Backend API Running"}
