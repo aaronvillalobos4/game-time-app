@@ -7,6 +7,7 @@ import remarkGfm from "remark-gfm";
 import ItineraryChat from "@/components/ItineraryChat";
 
 const FALLBACK_LOADING_MESSAGES = [
+  "Estimate wait time five minutes...",
   "Scouting ticket prices & stadium sections...",
   "Searching flight routes & travel schedules...",
   "Scouting highly-rated hotels near the venue...",
