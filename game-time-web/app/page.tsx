@@ -26,25 +26,28 @@ export default function Home() {
   const [itinerary, setItinerary] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Cycle through default fallback messages if no live SSE status is received
-  useEffect(() => {
-    if (!loading || statusMessage) return;
+// Cycle through default fallback messages if no live SSE status is received
+useEffect(() => {
+  // Only exit if we have received an explicit live status message from the SSE backend stream
+  if (!loading || statusMessage) return;
 
-    setLoadingMsgIndex(0);
+  setLoadingMsgIndex(0);
 
-    const interval = setInterval(() => {
-      setLoadingMsgIndex((prevIndex) => (prevIndex + 1) % FALLBACK_LOADING_MESSAGES.length);
-    }, 5000);
+  const interval = setInterval(() => {
+    setLoadingMsgIndex((prevIndex) => 
+      prevIndex < FALLBACK_LOADING_MESSAGES.length - 1 ? prevIndex + 1 : prevIndex
+    );
+  }, 5000);
 
-    return () => clearInterval(interval);
-  }, [loading, statusMessage]);
+  return () => clearInterval(interval);
+}, [loading, statusMessage]);
 
   const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setItinerary("");
-    setErrorMsg(null);
-    setStatusMessage("Connecting to Game Time planner...");
+  e.preventDefault();
+  setLoading(true);
+  setItinerary("");
+  setErrorMsg(null);
+  setStatusMessage(""); // Keep empty so the progressive array timer activates right away!
 
     // Clean currency symbols or formatting from input before sending
     const numericBudget = parseFloat(budget.replace(/[^0-9.]/g, "")) || budget;
