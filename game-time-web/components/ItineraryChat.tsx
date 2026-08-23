@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Message {
   role: "user" | "assistant";
@@ -114,16 +116,37 @@ export default function ItineraryChat({ initialItinerary, currentItinerary }: It
         {messages.map((m, index) => (
           <div
             key={index}
-            className={`p-3.5 rounded-xl text-sm leading-relaxed ${
+            className={`p-4 rounded-xl text-sm leading-relaxed ${
               m.role === "user"
                 ? "bg-red-600 text-white ml-auto max-w-lg shadow-md"
                 : "bg-slate-700/80 text-slate-100 mr-auto max-w-2xl border border-slate-600"
             }`}
           >
-            <div className="text-xs font-semibold uppercase tracking-wider mb-1 opacity-75">
+            <div className="text-xs font-semibold uppercase tracking-wider mb-2 opacity-75">
               {m.role === "user" ? "You" : "Game Time Assistant"}
             </div>
-            <div className="whitespace-pre-wrap">{m.content}</div>
+            
+            {m.role === "user" ? (
+              <div className="whitespace-pre-wrap">{m.content}</div>
+            ) : (
+              <div className="chat-markdown prose prose-invert max-w-none text-slate-100 space-y-2 text-sm">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    h1: ({node, ...props}) => <h1 className="text-base font-bold text-white mt-2 mb-1" {...props} />,
+                    h2: ({node, ...props}) => <h2 className="text-base font-bold text-white mt-2 mb-1" {...props} />,
+                    h3: ({node, ...props}) => <h3 className="text-sm font-bold text-white mt-2 mb-1" {...props} />,
+                    ul: ({node, ...props}) => <ul className="list-disc list-inside space-y-1 my-2 pl-2" {...props} />,
+                    ol: ({node, ...props}) => <ol className="list-decimal list-inside space-y-1 my-2 pl-2" {...props} />,
+                    li: ({node, ...props}) => <li className="text-slate-200" {...props} />,
+                    strong: ({node, ...props}) => <strong className="font-semibold text-white" {...props} />,
+                    p: ({node, ...props}) => <p className="mb-2 last:mb-0 leading-normal" {...props} />,
+                  }}
+                >
+                  {m.content}
+                </ReactMarkdown>
+              </div>
+            )}
           </div>
         ))}
 
