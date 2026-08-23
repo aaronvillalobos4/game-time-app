@@ -37,6 +37,7 @@ export default function Home() {
   }>({});
   const [itinerary, setItinerary] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const handleSend = async (userText: string) => {
     if (!userText.trim() || loading) return;
@@ -123,13 +124,21 @@ export default function Home() {
             const rawData = line.replace("data: ", "").trim();
             try {
               const parsed = JSON.parse(rawData);
-              if (parsed.type === "token") {
-                setItinerary((prev) => (prev || "") + parsed.content);
-              } else if (parsed.type === "error") {
-                throw new Error(parsed.content);
+              if (parsed.type === "status") {
+                // Update status bar or temporary loading message
+                setStatusMessage(parsed.content);
+              } else if (parsed.type === "step") {
+                // Append step card (Tickets, Flights, Hotels, or Itinerary) directly into chat
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    sender: "bot",
+                    text: `### ${parsed.step_name}\n\n${parsed.content}`,
+                  },
+                ]);
               }
-            } catch {
-              setItinerary((prev) => (prev || "") + rawData);
+            } catch (err) {
+              console.error("Error parsing stream event:", err);
             }
           }
         }
@@ -181,7 +190,7 @@ export default function Home() {
           {loading && (
             <div className="flex items-center gap-2 text-xs text-red-400 animate-pulse p-2">
               <span className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
-              Processing trip details...
+              {statusMessage || "Processing trip details..."}
             </div>
           )}
         </div>

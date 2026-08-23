@@ -120,9 +120,6 @@ async def parse_intent(req: ChatParseRequest):
 # ==========================================
 @app.post("/api/itinerary-stream")
 async def generate_itinerary_stream(req: ItineraryRequest):
-    """
-    Kicks off the CrewAI agent execution pipeline and streams status updates & Markdown output.
-    """
     inputs = {
         "game": req.event,
         "date": req.date,
@@ -134,22 +131,30 @@ async def generate_itinerary_stream(req: ItineraryRequest):
         try:
             crew_runner = TravelCrew(inputs)
             
-            # Send initial SSE status message
-            yield f"data: {json.dumps({'type': 'status', 'content': 'Initializing travel agents...'})}\n\n"
+            # 1. Run Tickets Task
+            yield f"data: {json.dumps({'type': 'status', 'content': '🎟️ Scouting game tickets...'})}\n\n"
+            ticket_res = await crew_runner.run_tickets_only()
+            yield f"data: {json.dumps({'type': 'step', 'step_name': 'Tickets', 'content': str(ticket_res)})}\n\n"
+
+            # 2. Run Flights Task
+            yield f"data: {json.dumps({'type': 'status', 'content': '✈️ Searching flight routes...'})}\n\n"
+            flight_res = await crew_runner.run_flights_only()
+            yield f"data: {json.dumps({'type': 'step', 'step_name': 'Flights', 'content': str(flight_res)})}\n\n"
+
+            # 3. Run Hotels Task
+            yield f"data: {json.dumps({'type': 'status', 'content': '🏨 Scouting hotel accommodations...'})}\n\n"
+            hotel_res = await crew_runner.run_hotels_only()
+            yield f"data: {json.dumps({'type': 'step', 'step_name': 'Hotels', 'content': str(hotel_res)})}\n\n"
+
+            # 4. Final Synthesis
+            yield f"data: {json.dumps({'type': 'status', 'content': '📋 Synthesizing full itinerary...'})}\n\n"
+            itinerary_res = await crew_runner.run_synthesis_only(ticket_res, flight_res, hotel_res)
+            yield f"data: {json.dumps({'type': 'step', 'step_name': 'Final Itinerary', 'content': str(itinerary_res)})}\n\n"
             
-            # Run async crew kickoff
-            result = await crew_runner.run()
-            
-            # Extract final text output from CrewAI response
-            final_output = str(result)
-            
-            # Stream final Markdown tokens to frontend
-            yield f"data: {json.dumps({'type': 'token', 'content': final_output})}\n\n"
             yield "data: [DONE]\n\n"
 
         except Exception as e:
-            err_msg = json.dumps({"type": "error", "content": str(e)})
-            yield f"data: {err_msg}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
