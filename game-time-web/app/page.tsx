@@ -180,7 +180,7 @@ useEffect(() => {
                 type="text"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                placeholder="March 14"
+                placeholder="mm/dd/yyyy"
                 className="w-full bg-[#334155] border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
                 required
               />
