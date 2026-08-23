@@ -112,12 +112,18 @@ async def generate_itinerary_stream(req: ItineraryRequest):
 async def chat_endpoint(payload: ChatPayload):
     """Refinement chat endpoint using standard non-streaming JSON."""
     
-    system_prompt = (
-        "You are an expert sports travel assistant for Game Time. "
-        "Your task is to refine and modify the user's existing trip itinerary based on their questions or requested changes "
-        "(e.g., swapping flight times, changing hotel tiers, adjusting budgets, or adding local spot recommendations). "
-        "Keep responses clear, concise, and formatted in clean Markdown."
-    )
+    system_prompt = """You are an expert sports travel assistant for Game Time. Your task is to refine and modify the user's existing trip itinerary based on their questions or requested changes (e.g., swapping flight times, changing hotel tiers, adjusting budgets, or adding local spot recommendations). Keep responses clear, concise, and formatted in clean Markdown.
+
+ALWAYS provide the full updated itinerary in your response, even if only a small change was requested, and format it like this:
+## 🎟️ Quick Booking Links
+
+| Category | Option | Booking / Details |
+| :--- | :--- | :--- |
+| **Tickets** | [Event Name] Tickets | [Find Tickets on SeatGeek](https://seatgeek.com) |
+| **Hotel** | [Hotel Name] | [Book on Expedia](https://www.expedia.com) / [Hotels.com](https://www.hotels.com) |
+| **Flights** | [Departure] to [Destination] | [Search Flights on Google Flights](https://www.google.com/travel/flights) |
+
+*Note: Double check availability and prices prior to completing reservations.*"""
 
     if payload.currentItinerary:
         system_prompt += f"\n\nCURRENT ITINERARY CONTEXT:\n{payload.currentItinerary}"
