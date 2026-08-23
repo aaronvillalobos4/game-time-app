@@ -1,10 +1,35 @@
 # agents.py
 import os
+import re
 import requests
 from crewai import Agent, Task, Crew, Process
 from crewai.tools import tool
 
-
+# ==========================================
+# HELPER FUNCTIONS
+# ==========================================
+def format_origin_location(raw_origin: str) -> str:
+    """
+    Cleans and standardizes departure locations like 'austin tx', 
+    'Austin, TX', or 'austin' into clean 'City, ST' format.
+    """
+    if not raw_origin:
+        return ""
+    
+    # Trim excess spaces
+    cleaned = raw_origin.strip()
+    
+    # Split by comma or spaces
+    parts = [p.strip() for p in re.split(r'[, ]+', cleaned) if p.strip()]
+    
+    # If a 2-letter state code is present at the end
+    if len(parts) >= 2 and len(parts[-1]) == 2:
+        city = " ".join(parts[:-1]).title()
+        state = parts[-1].upper()
+        return f"{city}, {state}"
+    
+    # Fallback to title casing if state code wasn't specified
+    return cleaned.title()
 # ==========================================
 # CUSTOM SEARCH SCRAPING TOOL
 # ==========================================
@@ -53,6 +78,10 @@ def google_search_scraper(query: str) -> str:
 class TravelCrew:
     def __init__(self, inputs: dict):
         self.inputs = inputs  # Expects: {"game": ..., "date": ..., "origin": ..., "budget": ...}
+        
+        # Standardize origin city/state right on initialization
+        if "origin" in self.inputs:
+            self.inputs["origin"] = format_origin_location(str(self.inputs["origin"]))
 
     def ticket_agent(self) -> Agent:
         return Agent(

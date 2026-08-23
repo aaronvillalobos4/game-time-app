@@ -49,20 +49,23 @@ useEffect(() => {
   setErrorMsg(null);
   setStatusMessage(""); // Keep empty so the progressive array timer activates right away!
 
-    // Clean currency symbols or formatting from input before sending
-    const numericBudget = parseFloat(budget.replace(/[^0-9.]/g, "")) || budget;
+  // 1. Standardize Departure City (trim spaces & handle whitespace)
+  const sanitizedDeparture = departureCity.trim().replace(/\s+/g, " ");
 
-    try {
-      const response = await fetch("https://game-time-f7qt.onrender.com/api/itinerary-stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event,
-          date,
-          departure_city: departureCity,
-          budget: numericBudget,
-        }),
-      });
+  // 2. Standardize Budget
+  const numericBudget = parseFloat(budget.replace(/[^0-9.]/g, "")) || budget;
+
+  try {
+    const response = await fetch("https://game-time-f7qt.onrender.com/api/itinerary-stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event,
+        date,
+        departure_city: sanitizedDeparture, // <--- Pass standardized input here
+        budget: numericBudget,
+      }),
+    });
 
       if (!response.ok) {
         const errText = await response.text();
