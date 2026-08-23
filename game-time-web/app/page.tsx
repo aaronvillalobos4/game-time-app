@@ -34,7 +34,7 @@ export default function Home() {
 
     const interval = setInterval(() => {
       setLoadingMsgIndex((prevIndex) => (prevIndex + 1) % FALLBACK_LOADING_MESSAGES.length);
-    }, 6000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, [loading, statusMessage]);
