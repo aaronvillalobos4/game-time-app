@@ -190,6 +190,30 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2500);
   };
 
+  const handleEmail = () => {
+    if (!itinerary) return;
+    const subject = encodeURIComponent(`Game Time Itinerary: ${slots.event || "Sports Trip"}`);
+    const body = encodeURIComponent(itinerary);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const handleShare = async () => {
+    if (!itinerary) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Game Time Itinerary: ${slots.event || "Sports Trip"}`,
+          text: itinerary,
+        });
+      } catch (err) {
+        console.error("Share failed:", err);
+      }
+    } else {
+      // Fallback to copy if Web Share API is not supported on desktop
+      handleCopy();
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center p-6 print:p-0 print:bg-white print:text-black">
       <div className="w-full max-w-3xl space-y-6 my-4">
@@ -213,7 +237,7 @@ export default function Home() {
         </div>
 
         {/* Chat Stream Window (Hidden on Print) */}
-        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl print:hidden">
+        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-[250px] max-h-[400px] overflow-y-auto shadow-xl print:hidden">
           {messages.map((m, i) => (
             <div
               key={i}
@@ -292,11 +316,13 @@ export default function Home() {
         {/* Dedicated Output Itinerary Display */}
         {itinerary && (
           <div className="bg-[#1e293b] p-6 sm:p-8 rounded-2xl border border-slate-800 text-left space-y-4 shadow-xl print:bg-white print:text-black print:border-none print:shadow-none print:p-0">
-            <h2 className="text-xl font-bold text-white border-b border-slate-700 pb-3 flex items-center justify-between print:text-black print:border-black">
-              <span>Your Custom Itinerary</span>
-              
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-700 pb-3 gap-3 print:border-black">
+              <h2 className="text-xl font-bold text-white print:text-black">
+                Your Custom Itinerary
+              </h2>
+
               {/* Action Buttons (Hidden on Print) */}
-              <div className="flex gap-2 print:hidden">
+              <div className="flex flex-wrap gap-2 print:hidden">
                 <button
                   onClick={handleCopy}
                   className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
@@ -304,13 +330,25 @@ export default function Home() {
                   {copied ? "✓ Copied!" : "📋 Copy"}
                 </button>
                 <button
+                  onClick={handleEmail}
+                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  ✉️ Email
+                </button>
+                <button
+                  onClick={handleShare}
+                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  📱 Share / Text
+                </button>
+                <button
                   onClick={handlePrint}
                   className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
                 >
-                  🖨️ Print / Save PDF
+                  🖨️ PDF
                 </button>
               </div>
-            </h2>
+            </div>
 
             <div className="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed prose-headings:text-white prose-a:text-red-400 prose-table:border-collapse prose-th:bg-slate-800 prose-th:p-2 prose-td:p-2 prose-td:border-b prose-td:border-slate-700 print:prose:text-black print:prose-headings:text-black print:prose-a:text-red-700 print:prose-th:bg-gray-200 print:prose-td:border-gray-300">
               <ReactMarkdown
