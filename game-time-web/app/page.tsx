@@ -24,7 +24,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Array<{ sender: "user" | "bot"; text: string }>>([
     {
       sender: "bot",
-      text: "Welcome to Game Time! Where are you headed? Tell me the matchup, dates, departure city, or budget to get started.",
+      text: "Welcome to Game Time! What game do you want to go see?",
     },
   ]);
   const [input, setInput] = useState("");

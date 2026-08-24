@@ -49,63 +49,64 @@ async def parse_intent(req: ChatParseRequest):
         "budget": None
     }
 
-    # 1. Budget extraction (e.g., "$1200", "1200 budget", "under 800")
-    budget_match = re.search(r'\$?(\d{3,5})', text)
-    if budget_match and not slots.get("budget"):
-        try:
+    # 1. Check/Extract Event (Matchup or Team)
+    if not slots.get("event"):
+        # If user provides event info, store it
+        if "vs" in text.lower() or "@" in text or "game" in text.lower() or len(text.strip()) > 3:
+            slots["event"] = text.strip()
+
+    # 2. Check/Extract Date
+    elif not slots.get("date"):
+        date_match = re.search(
+            r'(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:, \d{4})?|\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 
+            text, re.IGNORECASE
+        )
+        slots["date"] = date_match.group(1) if date_match else text.strip()
+
+    # 3. Check/Extract Departure City
+    elif not slots.get("departure_city"):
+        dep_match = re.search(r'(?:from|out of|leaving|departing)\s+([A-Za-z\s,]+)', text, re.IGNORECASE)
+        slots["departure_city"] = dep_match.group(1).strip() if dep_match else text.strip()
+
+    # 4. Check/Extract Budget (Only numerical values when budget is explicitly expected)
+    elif not slots.get("budget"):
+        budget_match = re.search(r'\$?(\d{3,5})', text)
+        if budget_match:
             slots["budget"] = float(budget_match.group(1))
-        except ValueError:
-            pass
 
-    # 2. Date extraction
-    date_match = re.search(
-        r'(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:, \d{4})?|\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 
-        text, 
-        re.IGNORECASE
-    )
-    if date_match and not slots.get("date"):
-        slots["date"] = date_match.group(1)
-
-    # 3. Departure City extraction
-    dep_match = re.search(
-        r'(?:from|out of|leaving|departing)\s+([A-Za-z\s]+(?:,\s*[A-Za-z]{2})?)', 
-        text, 
-        re.IGNORECASE
-    )
-    if dep_match and not slots.get("departure_city"):
-        slots["departure_city"] = dep_match.group(1).strip()
-
-    # 4. Event extraction
-    if not slots.get("event") and ("vs" in text.lower() or "@" in text or "game" in text.lower()):
-        clean_text = re.sub(
-            r'(\$?(\d{3,5})|from\s+.*|out of\s+.*|on\s+.*|\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 
-            '', 
-            text, 
-            flags=re.IGNORECASE
-        ).strip()
-        slots["event"] = clean_text if clean_text else text
-
-    # Strict check: Identify missing parameters in priority order
-    missing = [k for k, v in slots.items() if v is None]
-
-    if missing:
-        # Prompt user explicitly for the missing parameter before proceeding
-        questions = {
-            "event": "Which game or sports matchup are you planning to see?",
-            "date": f"What date is the {slots.get('event') or 'event'}?",
-            "departure_city": "Where will you be flying or departing from?",
-            "budget": f"What is your target total budget for the {slots.get('event') or 'trip'}? (e.g., $1000)"
-        }
+    # --- DETERMINE NEXT STEP QUESTION ---
+    if not slots.get("event"):
         return {
             "is_complete": False,
             "slots": slots,
-            "follow_up_question": questions[missing[0]]
+            "follow_up_question": "Welcome to Game Time! What game or sports matchup do you want to go see?"
         }
 
-    # All 4 slots present: allow workflow execution
+    if not slots.get("date"):
+        return {
+            "is_complete": False,
+            "slots": slots,
+            "follow_up_question": f"Awesome! What date is the {slots['event']} game?"
+        }
+
+    if not slots.get("departure_city"):
+        return {
+            "is_complete": False,
+            "slots": slots,
+            "follow_up_question": "Where will you be flying or departing from?"
+        }
+
+    if not slots.get("budget"):
+        return {
+            "is_complete": False,
+            "slots": slots,
+            "follow_up_question": f"What is your target total budget for this trip (tickets, flights, & hotel)? e.g., $1000"
+        }
+
+    # All slots complete!
     return {
-        "is_complete": True, 
-        "slots": slots, 
+        "is_complete": True,
+        "slots": slots,
         "follow_up_question": None
     }
 
