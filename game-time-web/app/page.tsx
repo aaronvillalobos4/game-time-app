@@ -11,13 +11,12 @@ const PROMPT_CHIPS = [
   "Missouri State @ Texas A&M on Sept 5 from College Station, TX under $700",
 ];
 
-const FALLBACK_LOADING_MESSAGES = [
-  "Estimate wait time five minutes...",
-  "Scouting ticket prices & stadium sections...",
-  "Searching flight routes & travel schedules...",
-  "Scouting highly-rated hotels near the venue...",
-  "Synthesizing your custom itinerary & budget breakdown...",
-  "Finalizing details (almost ready)...",
+const PROGRESSIVE_LOADING_STEPS = [
+  "🎟️ Scouting ticket options & stadium seating...",
+  "✈️ Comparing flight schedules & airline rates...",
+  "🏨 Checking top-rated hotels near the arena...",
+  "📊 Verifying prices against your budget...",
+  "📝 Formatting your custom weekend schedule..."
 ];
 
 export default function Home() {
@@ -32,22 +31,14 @@ export default function Home() {
   const [slots, setSlots] = useState<{
     event?: string | null;
     date?: string | null;
+    needs_flight?: boolean | null;
     departure_city?: string | null;
     budget?: number | null;
   }>({});
   const [itinerary, setItinerary] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // Inside Home component in page.tsx:
   const [statusMessage, setStatusMessage] = useState("");
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
-
-  const PROGRESSIVE_LOADING_STEPS = [
-    "🎟️ Scouting ticket options & stadium seating...",
-    "✈️ Comparing flight schedules & airline rates...",
-    "🏨 Checking top-rated hotels near the arena...",
-    "📊 Verifying prices against your budget...",
-    "📝 Formatting your custom weekend schedule..."
-  ];
 
   // Cycle status messages every 6 seconds if loading
   useEffect(() => {
@@ -81,24 +72,21 @@ export default function Home() {
         throw new Error(`Parse endpoint error: ${parseRes.statusText}`);
       }
 
-      // Inside handleSend in page.tsx
       const parseData = await parseRes.json();
       const updatedSlots = parseData.slots;
       setSlots(updatedSlots);
 
-      // STOP EXECUTION if budget or any other slot is missing
+      // Stop execution if any slots are missing
       if (!parseData.is_complete) {
         setMessages([
           ...newMessages,
           { sender: "bot", text: parseData.follow_up_question },
         ]);
         setLoading(false);
-        return; // Execution halts here until user answers
+        return;
       }
 
-// Proceed to stream ONLY when parseData.is_complete is true
-
-      // 2. Slots complete: trigger the CrewAI pipeline
+      // 2. All slots complete: trigger CrewAI pipeline
       setMessages([
         ...newMessages,
         {
@@ -113,7 +101,7 @@ export default function Home() {
         body: JSON.stringify({
           event: updatedSlots.event,
           date: updatedSlots.date,
-          departure_city: updatedSlots.departure_city,
+          departure_city: updatedSlots.departure_city || "Local",
           budget: updatedSlots.budget,
         }),
       });
@@ -131,38 +119,58 @@ export default function Home() {
       const decoder = new TextDecoder("utf-8");
       setItinerary("");
 
+      let buffer = "";
+      let fullItineraryText = "";
+
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const events = chunk.split("\n\n");
+        // Append chunk to stream buffer
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Split on double-newlines (SSE event boundary)
+        const events = buffer.split("\n\n");
+        
+        // Keep incomplete trailing event chunk in the buffer
+        buffer = events.pop() || "";
 
         for (const eventBlock of events) {
-          if (!eventBlock.trim()) continue;
-
-          if (eventBlock.includes("[DONE]")) continue;
-
           const line = eventBlock.trim();
+          if (!line || line.includes("[DONE]")) continue;
+
           if (line.startsWith("data: ")) {
             const rawData = line.replace("data: ", "").trim();
             try {
               const parsed = JSON.parse(rawData);
+
               if (parsed.type === "status") {
-                // Update status bar or temporary loading message
                 setStatusMessage(parsed.content);
-              } else if (parsed.type === "step") {
-                // Append step card (Tickets, Flights, Hotels, or Itinerary) directly into chat
+              } else if (parsed.type === "step" || parsed.type === "token") {
+                const stepContent = parsed.content || rawData;
+                
+                // Append directly to Chat Stream
                 setMessages((prev) => [
                   ...prev,
                   {
                     sender: "bot",
-                    text: `### ${parsed.step_name}\n\n${parsed.content}`,
+                    text: parsed.step_name 
+                      ? `### ${parsed.step_name}\n\n${stepContent}` 
+                      : stepContent,
                   },
                 ]);
+
+                // Accumulate full response for Itinerary Card at bottom
+                fullItineraryText += `\n\n${stepContent}`;
+                setItinerary(fullItineraryText.trim());
               }
             } catch (err) {
-              console.error("Error parsing stream event:", err);
+              // Fallback for unformatted raw text payloads
+              if (rawData) {
+                setMessages((prev) => [...prev, { sender: "bot", text: rawData }]);
+                fullItineraryText += `\n\n${rawData}`;
+                setItinerary(fullItineraryText.trim());
+              }
             }
           }
         }
@@ -172,6 +180,7 @@ export default function Home() {
       setErrorMsg(err.message || "Failed to process request. Please check backend connection.");
     } finally {
       setLoading(false);
+      setStatusMessage("");
     }
   };
 
@@ -198,7 +207,6 @@ export default function Home() {
         </div>
 
         {/* Chat Stream Window */}
-        {/* Inside Chat History Window */}
         <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl">
           {messages.map((m, i) => (
             <div
@@ -209,7 +217,16 @@ export default function Home() {
                   : "bg-[#334155] text-slate-200 rounded-bl-none"
               }`}
             >
-              {m.text}
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ node, ...props }) => (
+                    <a {...props} target="_blank" rel="noopener noreferrer" className="text-red-400 underline hover:text-red-300 font-medium" />
+                  )
+                }}
+              >
+                {m.text}
+              </ReactMarkdown>
             </div>
           ))}
 
@@ -233,7 +250,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* One-Shot Prompt Chips */}
+        {/* Prompt Chips */}
         <div className="space-y-2">
           <p className="text-xs font-semibold text-gray-400">Try a quick sample trip:</p>
           <div className="flex flex-wrap gap-2">
@@ -250,7 +267,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Input Controls */}
+        {/* Input Form */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -283,14 +300,23 @@ export default function Home() {
           </div>
         )}
 
-        {/* Output Itinerary Display */}
+        {/* Dedicated Output Itinerary Display */}
         {itinerary && (
           <div className="bg-[#1e293b] p-6 sm:p-8 rounded-2xl border border-slate-800 text-left space-y-4 shadow-xl">
             <h2 className="text-xl font-bold text-white border-b border-slate-700 pb-3 flex items-center justify-between">
               <span>Your Custom Itinerary</span>
             </h2>
             <div className="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed prose-headings:text-white prose-a:text-red-400 prose-table:border-collapse prose-th:bg-slate-800 prose-th:p-2 prose-td:p-2 prose-td:border-b prose-td:border-slate-700">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{itinerary}</ReactMarkdown>
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  a: ({ node, ...props }) => (
+                    <a {...props} target="_blank" rel="noopener noreferrer" className="text-red-400 underline hover:text-red-300 font-medium" />
+                  )
+                }}
+              >
+                {itinerary}
+              </ReactMarkdown>
             </div>
           </div>
         )}
