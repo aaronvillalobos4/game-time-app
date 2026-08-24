@@ -127,26 +127,20 @@ async def generate_itinerary_stream(req: ItineraryRequest):
         try:
             crew_runner = TravelCrew(inputs)
             
-            # 1. Run Tickets Task
-            yield f"data: {json.dumps({'type': 'status', 'content': '🎟️ Scouting game tickets...'})}\n\n"
-            ticket_res = await crew_runner.run_tickets_only()
-            yield f"data: {json.dumps({'type': 'step', 'step_name': 'Tickets', 'content': str(ticket_res)})}\n\n"
-
-            # 2. Run Flights Task
-            yield f"data: {json.dumps({'type': 'status', 'content': '✈️ Searching flight routes...'})}\n\n"
-            flight_res = await crew_runner.run_flights_only()
-            yield f"data: {json.dumps({'type': 'step', 'step_name': 'Flights', 'content': str(flight_res)})}\n\n"
-
-            # 3. Run Hotels Task
-            yield f"data: {json.dumps({'type': 'status', 'content': '🏨 Scouting hotel accommodations...'})}\n\n"
-            hotel_res = await crew_runner.run_hotels_only()
-            yield f"data: {json.dumps({'type': 'step', 'step_name': 'Hotels', 'content': str(hotel_res)})}\n\n"
-
-            # 4. Final Synthesis
-            yield f"data: {json.dumps({'type': 'status', 'content': '📋 Synthesizing full itinerary...'})}\n\n"
-            itinerary_res = await crew_runner.run_synthesis_only(ticket_res, flight_res, hotel_res)
-            yield f"data: {json.dumps({'type': 'step', 'step_name': 'Final Itinerary', 'content': str(itinerary_res)})}\n\n"
+            # Status Update 1
+            yield f"data: {json.dumps({'type': 'status', 'content': '🎟️ Scouting available tickets on StubHub & SeatGeek...'})}\n\n"
             
+            # Status Update 2
+            yield f"data: {json.dumps({'type': 'status', 'content': '✈️ Searching flight options & airline schedules...'})}\n\n"
+            
+            # Status Update 3
+            yield f"data: {json.dumps({'type': 'status', 'content': '🏨 Finding top-rated hotels near the venue...'})}\n\n"
+            
+            # Status Update 4
+            yield f"data: {json.dumps({'type': 'status', 'content': '📋 Synthesizing full itinerary & cost breakdown...'})}\n\n"
+            
+            result = await crew_runner.run()
+            yield f"data: {json.dumps({'type': 'token', 'content': str(result)})}\n\n"
             yield "data: [DONE]\n\n"
 
         except Exception as e:
