@@ -120,45 +120,50 @@ class TravelCrew:
 
     async def run(self):
         ticket_agent_inst = self.ticket_agent()
-        flight_agent_inst = self.flight_agent()
         hotel_agent_inst = self.hotel_agent()
         coordinator_agent_inst = self.coordinator_agent()
 
-        task_tickets = Task(
-            description=f"Find 2 tickets for {self.inputs.get('game')} on {self.inputs.get('date')}. Find realistic price ranges, sections, and source links.",
-            expected_output="A list of 2-3 ticket options with seat details, exact prices, and URLs.",
-            agent=ticket_agent_inst
+        # Determine if flight searching is needed
+        is_local = self.inputs.get('origin', '').lower() in ['local', 'none', '']
+
+        tasks = [
+            Task(
+                description=f"Find 2 ticket options for {self.inputs.get('game')} on {self.inputs.get('date')}. Include booking URLs as [Book Here](URL).",
+                expected_output="2 ticket options with seat details, prices, and booking links.",
+                agent=ticket_agent_inst
+            )
+        ]
+
+        # Only include flight task if user is traveling from out of town
+        if not is_local:
+            flight_agent_inst = self.flight_agent()
+            tasks.append(
+                Task(
+                    description=f"Search flights from {self.inputs.get('origin')} for {self.inputs.get('date')}. Include booking URLs as [Book Here](URL).",
+                    expected_output="Flight options with flight numbers, times, prices, and booking links.",
+                    agent=flight_agent_inst
+                )
+            )
+
+        tasks.append(
+            Task(
+                description=f"Search 2 top-rated hotels close to the venue for {self.inputs.get('game')}. Include booking URLs as [Book Here](URL).",
+                expected_output="2 hotel options with nightly rates, ratings, and booking links.",
+                agent=hotel_agent_inst
+            )
         )
 
-        task_flights = Task(
-            description=f"Search for flights from {self.inputs.get('origin')} to the match city for {self.inputs.get('date')}. Standalone Flights: Search options and output referral links (e.g. Skyscanner/WayAway). Bundled Packages: If combining with hotels, prioritize Expedia package deals and highlight total savings. Focus on arrival times, estimated costs, and airline options.",
-            expected_output="Flight options with flight numbers, times, and booking source names.",
-            agent=flight_agent_inst
+        tasks.append(
+            Task(
+                description=f"Synthesize ticket, hotel, and flight (if applicable) choices into a weekend plan under ${self.inputs.get('budget')}. Must include clickable markdown links [Name](URL).",
+                expected_output="A styled markdown itinerary with budget breakdown table and booking links.",
+                agent=coordinator_agent_inst
+            )
         )
-
-        task_hotels = Task(
-            description=f"Search for top-rated hotels close to the venue of {self.inputs.get('game')}.",
-            expected_output="A curated list of 3 hotels including distance to arena, nightly rate, and ratings.",
-            agent=hotel_agent_inst
-        )
-
-        task_itinerary = Task(
-            description=f"""
-Verify all data from ticket, flight, and hotel tasks.
-Synthesize findings into a cohesive sports weekend itinerary under a total budget of ${self.inputs.get('budget')}.
-
-CRITICAL REQUIREMENTS FOR BOOKING LINKS:
-1. You MUST include clickable Markdown hyperlinks [Book Tickets Here](URL) for tickets, flights, and hotels.
-2. If an exact URL is missing from a sub-agent, generate a direct query link (e.g., [Search StubHub](https://www.stubhub.com) or [Search Google Flights](https://www.google.com/travel/flights)).
-3. Do NOT output plain text descriptions without clickable URLs.
-""",
-    expected_output="A styled Markdown itinerary with budget breakdown table and clickable [Name](URL) links.",
-    agent=coordinator_agent_inst
-)
 
         crew = Crew(
-            agents=[ticket_agent_inst, flight_agent_inst, hotel_agent_inst, coordinator_agent_inst],
-            tasks=[task_tickets, task_flights, task_hotels, task_itinerary],
+            agents=[t.agent for t in tasks],
+            tasks=tasks,
             process=Process.sequential,
             verbose=True
         )
