@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import Script from "next/script";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -11,6 +12,13 @@ const PROGRESSIVE_LOADING_STEPS = [
   "🏨 Checking top-rated hotels near the arena...",
   "📊 Verifying prices against your budget...",
   "📝 Formatting your custom weekend schedule..."
+];
+
+const PROMPT_CHIPS = [
+  "🏈 Cowboys vs Eagles in Dallas",
+  "⚾ Astros vs Rangers on Oct 12",
+  "🏀 Lakers in LA with $1500 budget",
+  "🏒 Golden Knights in Vegas flying from Austin"
 ];
 
 export default function Home() {
@@ -209,13 +217,30 @@ export default function Home() {
         console.error("Share failed:", err);
       }
     } else {
-      // Fallback to copy if Web Share API is not supported on desktop
       handleCopy();
     }
   };
 
   return (
     <main className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center p-6 print:p-0 print:bg-white print:text-black">
+      {/* Google Tag (gtag.js) */}
+      <Script
+        strategy="afterInteractive"
+        src="https://www.googletagmanager.com/gtag/js?id=G-CP8PCZ4F12"
+      />
+      <Script
+        id="google-analytics"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-CP8PCZ4F12');
+          `,
+        }}
+      />
+
       <div className="w-full max-w-3xl space-y-6 my-4">
 
         {/* Header / Brand Logo (Hidden on Print) */}
@@ -274,36 +299,51 @@ export default function Home() {
                 {statusMessage || PROGRESSIVE_LOADING_STEPS[loadingMsgIndex]}
               </p>
               <p className="text-[11px] text-slate-400">
-                This usually takes 30-45 seconds while agents find live pricing.
+                This usually takes 30-45 seconds while agents scrape live pricing.
               </p>
             </div>
           )}
         </div>
 
-        {/* Input Form (Hidden on Print) */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend(input);
-          }}
-          className="flex gap-2 print:hidden"
-        >
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your matchup, date, city, or budget..."
-            disabled={loading}
-            className="flex-1 bg-[#1e293b] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
-          />
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition-colors text-sm"
+        {/* Input Form & Example Prompt Chips (Hidden on Print) */}
+        <div className="space-y-3 print:hidden">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSend(input);
+            }}
+            className="flex gap-2"
           >
-            Send
-          </button>
-        </form>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your matchup, date, city, or budget..."
+              disabled={loading}
+              className="flex-1 bg-[#1e293b] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+            <button
+              type="submit"
+              disabled={loading || !input.trim()}
+              className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition-colors text-sm"
+            >
+              Send
+            </button>
+          </form>
+
+          {/* Non-clickable Example Chips */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs text-slate-400 font-medium">Examples:</span>
+            {PROMPT_CHIPS.map((chip, idx) => (
+              <span
+                key={idx}
+                className="bg-[#1e293b] text-slate-300 border border-slate-700/60 rounded-full px-3 py-1 text-xs cursor-default select-none"
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+        </div>
 
         {/* Error Display (Hidden on Print) */}
         {errorMsg && (
