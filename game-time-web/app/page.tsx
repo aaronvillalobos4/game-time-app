@@ -60,19 +60,22 @@ export default function Home() {
         throw new Error(`Parse endpoint error: ${parseRes.statusText}`);
       }
 
+      // Inside handleSend in page.tsx
       const parseData = await parseRes.json();
       const updatedSlots = parseData.slots;
       setSlots(updatedSlots);
 
-      // If slots are incomplete, ask the follow-up question
+      // STOP EXECUTION if budget or any other slot is missing
       if (!parseData.is_complete) {
         setMessages([
           ...newMessages,
           { sender: "bot", text: parseData.follow_up_question },
         ]);
         setLoading(false);
-        return;
+        return; // Execution halts here until user answers
       }
+
+// Proceed to stream ONLY when parseData.is_complete is true
 
       // 2. Slots complete: trigger the CrewAI pipeline
       setMessages([

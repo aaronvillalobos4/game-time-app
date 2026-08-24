@@ -41,10 +41,6 @@ class ItineraryRequest(BaseModel):
 # ==========================================
 @app.post("/api/parse-intent")
 async def parse_intent(req: ChatParseRequest):
-    """
-    Extracts event, date, departure city, and budget slots from natural text.
-    Returns follow-up questions for any missing slot.
-    """
     text = req.message
     slots = req.current_slots or {
         "event": None, 
@@ -53,7 +49,7 @@ async def parse_intent(req: ChatParseRequest):
         "budget": None
     }
 
-    # Extract Budget (e.g., "$1200", "1200 budget", "under 800", "700 bucks")
+    # 1. Budget extraction (e.g., "$1200", "1200 budget", "under 800")
     budget_match = re.search(r'\$?(\d{3,5})', text)
     if budget_match and not slots.get("budget"):
         try:
@@ -61,7 +57,7 @@ async def parse_intent(req: ChatParseRequest):
         except ValueError:
             pass
 
-    # Extract Date (e.g., "Sept 5", "09/05/2026", "September 5", "March 14")
+    # 2. Date extraction
     date_match = re.search(
         r'(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:, \d{4})?|\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 
         text, 
@@ -70,7 +66,7 @@ async def parse_intent(req: ChatParseRequest):
     if date_match and not slots.get("date"):
         slots["date"] = date_match.group(1)
 
-    # Extract Departure City (e.g., "from Austin, TX", "flying out of Houston", "leaving College Station")
+    # 3. Departure City extraction
     dep_match = re.search(
         r'(?:from|out of|leaving|departing)\s+([A-Za-z\s]+(?:,\s*[A-Za-z]{2})?)', 
         text, 
@@ -79,9 +75,8 @@ async def parse_intent(req: ChatParseRequest):
     if dep_match and not slots.get("departure_city"):
         slots["departure_city"] = dep_match.group(1).strip()
 
-    # Extract Event/Matchup fallback if not yet set
-    if not slots.get("event") and ("vs" in text.lower() or "@" in text or "game" in text.lower() or "bears" in text.lower() or "aggies" in text.lower()):
-        # Remove budget, date, and location patterns to leave the game title
+    # 4. Event extraction
+    if not slots.get("event") and ("vs" in text.lower() or "@" in text or "game" in text.lower()):
         clean_text = re.sub(
             r'(\$?(\d{3,5})|from\s+.*|out of\s+.*|on\s+.*|\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 
             '', 
@@ -90,28 +85,28 @@ async def parse_intent(req: ChatParseRequest):
         ).strip()
         slots["event"] = clean_text if clean_text else text
 
-    # Check for missing slots in priority order
+    # Strict check: Identify missing parameters in priority order
     missing = [k for k, v in slots.items() if v is None]
 
-    if not missing:
+    if missing:
+        # Prompt user explicitly for the missing parameter before proceeding
+        questions = {
+            "event": "Which game or sports matchup are you planning to see?",
+            "date": f"What date is the {slots.get('event') or 'event'}?",
+            "departure_city": "Where will you be flying or departing from?",
+            "budget": f"What is your target total budget for the {slots.get('event') or 'trip'}? (e.g., $1000)"
+        }
         return {
-            "is_complete": True, 
-            "slots": slots, 
-            "follow_up_question": None
+            "is_complete": False,
+            "slots": slots,
+            "follow_up_question": questions[missing[0]]
         }
 
-    # Dynamic follow-up questions
-    questions = {
-        "event": "Which game or sports matchup are you planning to see?",
-        "date": f"What date is the {slots.get('event') or 'event'}?",
-        "departure_city": "Where will you be flying or departing from?",
-        "budget": "What is your target total budget for this trip?"
-    }
-
+    # All 4 slots present: allow workflow execution
     return {
-        "is_complete": False,
-        "slots": slots,
-        "follow_up_question": questions[missing[0]]
+        "is_complete": True, 
+        "slots": slots, 
+        "follow_up_question": None
     }
 
 

@@ -143,10 +143,18 @@ class TravelCrew:
         )
 
         task_itinerary = Task(
-            description=f"Verify all data. Build a cohesive weekend plan that keeps total costs under {self.inputs.get('budget')}. Format with a cost summary table and an hour-by-hour itinerary.",
-            expected_output="A beautifully styled markdown itinerary including a budget breakdown table, transit directions, and an hour-by-hour timeline.",
-            agent=coordinator_agent_inst
-        )
+            description=f"""
+Verify all data from ticket, flight, and hotel tasks.
+Synthesize findings into a cohesive sports weekend itinerary under a total budget of ${self.inputs.get('budget')}.
+
+CRITICAL REQUIREMENTS FOR BOOKING LINKS:
+1. You MUST include clickable Markdown hyperlinks [Book Tickets Here](URL) for tickets, flights, and hotels.
+2. If an exact URL is missing from a sub-agent, generate a direct query link (e.g., [Search StubHub](https://www.stubhub.com) or [Search Google Flights](https://www.google.com/travel/flights)).
+3. Do NOT output plain text descriptions without clickable URLs.
+""",
+    expected_output="A styled Markdown itinerary with budget breakdown table and clickable [Name](URL) links.",
+    agent=coordinator_agent_inst
+)
 
         crew = Crew(
             agents=[ticket_agent_inst, flight_agent_inst, hotel_agent_inst, coordinator_agent_inst],
