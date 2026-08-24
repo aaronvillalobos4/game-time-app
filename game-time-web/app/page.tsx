@@ -16,7 +16,7 @@ const PROGRESSIVE_LOADING_STEPS = [
 
 const PROMPT_CHIPS = [
   "🏈 Cowboys vs Eagles in Dallas",
-  "⚾ Astros vs Rangers on Oct 12",
+  "⚾ Astros vs Rangers in Houston",
   "🏀 Lakers in LA with $1500 budget",
   "🏒 Golden Knights in Vegas flying from Austin"
 ];
@@ -187,6 +187,12 @@ export default function Home() {
     }
   };
 
+  const handleChipClick = (chipText: string) => {
+    if (loading) return;
+    setInput(chipText);
+    handleSend(chipText);
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -262,7 +268,7 @@ export default function Home() {
         </div>
 
         {/* Chat Stream Window (Hidden on Print) */}
-        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl print:hidden">
+        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-[250px] max-h-[400px] overflow-y-auto shadow-xl print:hidden">
           {messages.map((m, i) => (
             <div
               key={i}
@@ -305,8 +311,23 @@ export default function Home() {
           )}
         </div>
 
-        {/* Input Form & Example Prompt Chips (Hidden on Print) */}
+        {/* Clickable Example Prompt Chips Above Input Form (Hidden on Print) */}
         <div className="space-y-3 print:hidden">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-400 font-medium">Try asking:</span>
+            {PROMPT_CHIPS.map((chip, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleChipClick(chip)}
+                disabled={loading}
+                className="bg-[#1e293b] hover:bg-slate-700 hover:border-slate-500 text-slate-300 border border-slate-700/60 rounded-full px-3 py-1 text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -330,19 +351,6 @@ export default function Home() {
               Send
             </button>
           </form>
-
-          {/* Non-clickable Example Chips */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <span className="text-xs text-slate-400 font-medium">Examples:</span>
-            {PROMPT_CHIPS.map((chip, idx) => (
-              <span
-                key={idx}
-                className="bg-[#1e293b] text-slate-300 border border-slate-700/60 rounded-full px-3 py-1 text-xs cursor-default select-none"
-              >
-                {chip}
-              </span>
-            ))}
-          </div>
         </div>
 
         {/* Error Display (Hidden on Print) */}
