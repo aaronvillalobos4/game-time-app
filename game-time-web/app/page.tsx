@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -37,7 +37,28 @@ export default function Home() {
   }>({});
   const [itinerary, setItinerary] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  // Inside Home component in page.tsx:
+  const [statusMessage, setStatusMessage] = useState("");
+  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+
+  const PROGRESSIVE_LOADING_STEPS = [
+    "🎟️ Scouting ticket options & stadium seating...",
+    "✈️ Comparing flight schedules & airline rates...",
+    "🏨 Checking top-rated hotels near the arena...",
+    "📊 Verifying prices against your budget...",
+    "📝 Formatting your custom weekend schedule..."
+  ];
+
+  // Cycle status messages every 6 seconds if loading
+  useEffect(() => {
+    if (!loading) return;
+
+    const interval = setInterval(() => {
+      setLoadingMsgIndex((prev) => (prev + 1) % PROGRESSIVE_LOADING_STEPS.length);
+    }, 6000);
+
+    return () => clearInterval(interval);
+  }, [loading]);
 
   const handleSend = async (userText: string) => {
     if (!userText.trim() || loading) return;
@@ -177,6 +198,7 @@ export default function Home() {
         </div>
 
         {/* Chat Stream Window */}
+        {/* Inside Chat History Window */}
         <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl">
           {messages.map((m, i) => (
             <div
@@ -190,10 +212,23 @@ export default function Home() {
               {m.text}
             </div>
           ))}
+
+          {/* Active Loading Animation Card */}
           {loading && (
-            <div className="flex items-center gap-2 text-xs text-red-400 animate-pulse p-2">
-              <span className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
-              {statusMessage || "Processing trip details..."}
+            <div className="bg-[#334155] text-slate-200 p-4 rounded-xl rounded-bl-none max-w-[85%] space-y-2 border border-red-500/30 animate-pulse">
+              <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
+                <span className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                </span>
+                Game Time AI Working...
+              </div>
+              <p className="text-sm text-white font-medium">
+                {statusMessage || PROGRESSIVE_LOADING_STEPS[loadingMsgIndex]}
+              </p>
+              <p className="text-[11px] text-slate-400">
+                This usually takes 30-45 seconds while agents scrape live pricing.
+              </p>
             </div>
           )}
         </div>
@@ -264,3 +299,4 @@ export default function Home() {
     </main>
   );
 }
+
