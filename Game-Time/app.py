@@ -113,6 +113,9 @@ async def parse_intent(req: ChatParseRequest):
             "follow_up_question": "Where will you be flying out from?"
         }
 
+    if not slots.get("departure_city"):
+        slots["departure_city"] = "Local"  # Default to Local if not provided
+
     if not slots.get("budget"):
         return {
             "is_complete": False, "slots": slots,
