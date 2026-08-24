@@ -45,17 +45,17 @@ async def parse_intent(req: ChatParseRequest):
     slots = req.current_slots or {
         "event": None, 
         "date": None, 
+        "needs_flight": None,
         "departure_city": None, 
         "budget": None
     }
 
-    # 1. Check/Extract Event (Matchup or Team)
+    # 1. Capture Event
     if not slots.get("event"):
-        # If user provides event info, store it
-        if "vs" in text.lower() or "@" in text or "game" in text.lower() or len(text.strip()) > 3:
+        if len(text.strip()) > 2:
             slots["event"] = text.strip()
 
-    # 2. Check/Extract Date
+    # 2. Capture Date
     elif not slots.get("date"):
         date_match = re.search(
             r'(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2}(?:, \d{4})?|\d{1,2}/\d{1,2}(?:/\d{2,4})?)', 
@@ -63,52 +63,64 @@ async def parse_intent(req: ChatParseRequest):
         )
         slots["date"] = date_match.group(1) if date_match else text.strip()
 
-    # 3. Check/Extract Departure City
-    elif not slots.get("departure_city"):
-        dep_match = re.search(r'(?:from|out of|leaving|departing)\s+([A-Za-z\s,]+)', text, re.IGNORECASE)
-        slots["departure_city"] = dep_match.group(1).strip() if dep_match else text.strip()
+    # 3. Handle Flight Check (Yes/No or direct answer)
+    elif slots.get("needs_flight") is None:
+        lower_text = text.lower().strip()
+        if any(neg in lower_text for neg in ["no", "local", "already there", "driving", "don't need"]):
+            slots["needs_flight"] = False
+            slots["departure_city"] = "Local"  # Set fallback for local trips
+        elif any(pos in lower_text for pos in ["yes", "yep", "flying", "fly"]):
+            slots["needs_flight"] = True
+        else:
+            # If user directly answered with a city like "Austin, TX"
+            slots["needs_flight"] = True
+            slots["departure_city"] = text.strip()
 
-    # 4. Check/Extract Budget (Only numerical values when budget is explicitly expected)
+    # 4. If user said YES to flying, capture Departure City
+    elif slots.get("needs_flight") and not slots.get("departure_city"):
+        # Clean conversational prefixes like "flying from" or "I am in"
+        clean_city = re.sub(r'^(i am in|flying out of|departing from|from)\s*', '', text, flags=re.IGNORECASE).strip()
+        slots["departure_city"] = clean_city
+
+    # 5. Capture Budget
     elif not slots.get("budget"):
         budget_match = re.search(r'\$?(\d{3,5})', text)
         if budget_match:
             slots["budget"] = float(budget_match.group(1))
 
-    # --- DETERMINE NEXT STEP QUESTION ---
+    # --- CONDITIONAL QUESTION QUEUE ---
     if not slots.get("event"):
         return {
-            "is_complete": False,
-            "slots": slots,
+            "is_complete": False, "slots": slots,
             "follow_up_question": "Welcome to Game Time! What game or sports matchup do you want to go see?"
         }
 
     if not slots.get("date"):
         return {
-            "is_complete": False,
-            "slots": slots,
+            "is_complete": False, "slots": slots,
             "follow_up_question": f"Awesome! What date is the {slots['event']} game?"
         }
 
-    if not slots.get("departure_city"):
+    if slots.get("needs_flight") is None:
         return {
-            "is_complete": False,
-            "slots": slots,
-            "follow_up_question": "Where will you be flying or departing from?"
+            "is_complete": False, "slots": slots,
+            "follow_up_question": "Will you be needing flights for this trip?"
+        }
+
+    if slots.get("needs_flight") and not slots.get("departure_city"):
+        return {
+            "is_complete": False, "slots": slots,
+            "follow_up_question": "Where will you be flying out from?"
         }
 
     if not slots.get("budget"):
         return {
-            "is_complete": False,
-            "slots": slots,
-            "follow_up_question": f"What is your target total budget for this trip (tickets, flights, & hotel)? e.g., $1000"
+            "is_complete": False, "slots": slots,
+            "follow_up_question": f"What is your target total budget for this trip? e.g., $600"
         }
 
     # All slots complete!
-    return {
-        "is_complete": True,
-        "slots": slots,
-        "follow_up_question": None
-    }
+    return {"is_complete": True, "slots": slots, "follow_up_question": None}
 
 
 # ==========================================
