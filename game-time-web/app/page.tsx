@@ -5,12 +5,6 @@ import Image from "next/image";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-const PROMPT_CHIPS = [
-  "Mavs @ Celtics on March 14 from Austin, TX with $1200 budget",
-  "Cowboys in Dallas on Oct 12 leaving from Houston with $1000 budget",
-  "Missouri State @ Texas A&M on Sept 5 from College Station, TX under $700",
-];
-
 const PROGRESSIVE_LOADING_STEPS = [
   "🎟️ Scouting ticket options & stadium seating...",
   "✈️ Comparing flight schedules & airline rates...",
@@ -128,10 +122,10 @@ export default function Home() {
 
         // Append chunk to stream buffer
         buffer += decoder.decode(value, { stream: true });
-        
+
         // Split on double-newlines (SSE event boundary)
         const events = buffer.split("\n\n");
-        
+
         // Keep incomplete trailing event chunk in the buffer
         buffer = events.pop() || "";
 
@@ -148,14 +142,14 @@ export default function Home() {
                 setStatusMessage(parsed.content);
               } else if (parsed.type === "step" || parsed.type === "token") {
                 const stepContent = parsed.content || rawData;
-                
+
                 // Append directly to Chat Stream
                 setMessages((prev) => [
                   ...prev,
                   {
                     sender: "bot",
-                    text: parsed.step_name 
-                      ? `### ${parsed.step_name}\n\n${stepContent}` 
+                    text: parsed.step_name
+                      ? `### ${parsed.step_name}\n\n${stepContent}`
                       : stepContent,
                   },
                 ]);
@@ -187,7 +181,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center p-6">
       <div className="w-full max-w-3xl space-y-6 my-4">
-        
+
         {/* Header / Brand Logo */}
         <div className="flex flex-col items-center justify-center gap-2 text-center">
           <Image
@@ -207,7 +201,7 @@ export default function Home() {
         </div>
 
         {/* Chat Stream Window */}
-        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl">
+        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-[250px] max-h-[400px] overflow-y-auto shadow-xl">
           {messages.map((m, i) => (
             <div
               key={i}
@@ -217,7 +211,7 @@ export default function Home() {
                   : "bg-[#334155] text-slate-200 rounded-bl-none"
               }`}
             >
-              <ReactMarkdown 
+              <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
                   a: ({ node, ...props }) => (
@@ -248,23 +242,6 @@ export default function Home() {
               </p>
             </div>
           )}
-        </div>
-
-        {/* Prompt Chips */}
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-400">Try a quick sample trip:</p>
-          <div className="flex flex-wrap gap-2">
-            {PROMPT_CHIPS.map((chip, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSend(chip)}
-                disabled={loading}
-                className="text-xs bg-[#1e293b] hover:bg-slate-700 text-slate-300 py-2 px-3 rounded-xl border border-slate-700 transition-colors text-left disabled:opacity-50"
-              >
-                + {chip}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Input Form */}
@@ -307,7 +284,7 @@ export default function Home() {
               <span>Your Custom Itinerary</span>
             </h2>
             <div className="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed prose-headings:text-white prose-a:text-red-400 prose-table:border-collapse prose-th:bg-slate-800 prose-th:p-2 prose-td:p-2 prose-td:border-b prose-td:border-slate-700">
-              <ReactMarkdown 
+              <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
                   a: ({ node, ...props }) => (
@@ -325,4 +302,3 @@ export default function Home() {
     </main>
   );
 }
-
