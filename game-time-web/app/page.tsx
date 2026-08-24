@@ -237,7 +237,7 @@ export default function Home() {
         </div>
 
         {/* Chat Stream Window (Hidden on Print) */}
-        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-[250px] max-h-[400px] overflow-y-auto shadow-xl print:hidden">
+        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl print:hidden">
           {messages.map((m, i) => (
             <div
               key={i}
