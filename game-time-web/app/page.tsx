@@ -274,7 +274,7 @@ export default function Home() {
                 {statusMessage || PROGRESSIVE_LOADING_STEPS[loadingMsgIndex]}
               </p>
               <p className="text-[11px] text-slate-400">
-                This usually takes 30-45 seconds while agents scrape live pricing.
+                This usually takes 30-45 seconds while agents find live pricing.
               </p>
             </div>
           )}
