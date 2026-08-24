@@ -33,6 +33,7 @@ export default function Home() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   // Cycle status messages every 6 seconds if loading
   useEffect(() => {
@@ -178,12 +179,23 @@ export default function Home() {
     }
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleCopy = () => {
+    if (!itinerary) return;
+    navigator.clipboard.writeText(itinerary);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+
   return (
-    <main className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center p-6">
+    <main className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center p-6 print:p-0 print:bg-white print:text-black">
       <div className="w-full max-w-3xl space-y-6 my-4">
 
-        {/* Header / Brand Logo */}
-        <div className="flex flex-col items-center justify-center gap-2 text-center">
+        {/* Header / Brand Logo (Hidden on Print) */}
+        <div className="flex flex-col items-center justify-center gap-2 text-center print:hidden">
           <Image
             src="/logo.png"
             alt="Game Time Logo"
@@ -200,8 +212,8 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Chat Stream Window */}
-        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-[250px] max-h-[400px] overflow-y-auto shadow-xl">
+        {/* Chat Stream Window (Hidden on Print) */}
+        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl print:hidden">
           {messages.map((m, i) => (
             <div
               key={i}
@@ -244,13 +256,13 @@ export default function Home() {
           )}
         </div>
 
-        {/* Input Form */}
+        {/* Input Form (Hidden on Print) */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSend(input);
           }}
-          className="flex gap-2"
+          className="flex gap-2 print:hidden"
         >
           <input
             type="text"
@@ -269,9 +281,9 @@ export default function Home() {
           </button>
         </form>
 
-        {/* Error Display */}
+        {/* Error Display (Hidden on Print) */}
         {errorMsg && (
-          <div className="bg-red-950/80 border border-red-800 text-red-200 p-4 rounded-xl text-sm text-left">
+          <div className="bg-red-950/80 border border-red-800 text-red-200 p-4 rounded-xl text-sm text-left print:hidden">
             <p className="font-semibold">Request Error:</p>
             <p className="text-xs mt-1 text-red-300">{errorMsg}</p>
           </div>
@@ -279,16 +291,33 @@ export default function Home() {
 
         {/* Dedicated Output Itinerary Display */}
         {itinerary && (
-          <div className="bg-[#1e293b] p-6 sm:p-8 rounded-2xl border border-slate-800 text-left space-y-4 shadow-xl">
-            <h2 className="text-xl font-bold text-white border-b border-slate-700 pb-3 flex items-center justify-between">
+          <div className="bg-[#1e293b] p-6 sm:p-8 rounded-2xl border border-slate-800 text-left space-y-4 shadow-xl print:bg-white print:text-black print:border-none print:shadow-none print:p-0">
+            <h2 className="text-xl font-bold text-white border-b border-slate-700 pb-3 flex items-center justify-between print:text-black print:border-black">
               <span>Your Custom Itinerary</span>
+              
+              {/* Action Buttons (Hidden on Print) */}
+              <div className="flex gap-2 print:hidden">
+                <button
+                  onClick={handleCopy}
+                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  {copied ? "✓ Copied!" : "📋 Copy"}
+                </button>
+                <button
+                  onClick={handlePrint}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
+                >
+                  🖨️ Print / Save PDF
+                </button>
+              </div>
             </h2>
-            <div className="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed prose-headings:text-white prose-a:text-red-400 prose-table:border-collapse prose-th:bg-slate-800 prose-th:p-2 prose-td:p-2 prose-td:border-b prose-td:border-slate-700">
+
+            <div className="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed prose-headings:text-white prose-a:text-red-400 prose-table:border-collapse prose-th:bg-slate-800 prose-th:p-2 prose-td:p-2 prose-td:border-b prose-td:border-slate-700 print:prose:text-black print:prose-headings:text-black print:prose-a:text-red-700 print:prose-th:bg-gray-200 print:prose-td:border-gray-300">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
                   a: ({ node, ...props }) => (
-                    <a {...props} target="_blank" rel="noopener noreferrer" className="text-red-400 underline hover:text-red-300 font-medium" />
+                    <a {...props} target="_blank" rel="noopener noreferrer" className="text-red-400 underline hover:text-red-300 font-medium print:text-red-700" />
                   )
                 }}
               >
