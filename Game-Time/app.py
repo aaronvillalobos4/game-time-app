@@ -1,14 +1,15 @@
 import os
 import re
 import json
+import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
-# Import your CrewAI pipeline from agents.py
-from agents import TravelCrew
+# Import CrewAI pipeline and guardrail intent evaluator from agents.py
+from agents import TravelCrew, evaluate_user_intent
 
 app = FastAPI(title="Game Time API", version="1.0.0")
 
@@ -28,6 +29,7 @@ app.add_middleware(
 class ChatParseRequest(BaseModel):
     message: str
     current_slots: Optional[Dict[str, Any]] = None
+    session_history: Optional[list] = []
 
 class ItineraryRequest(BaseModel):
     event: str
@@ -42,6 +44,24 @@ class ItineraryRequest(BaseModel):
 @app.post("/api/parse-intent")
 async def parse_intent(req: ChatParseRequest):
     text = req.message
+    history = req.session_history or []
+    
+    # Check for Global Reset/Cancel Intent via Guardrail evaluator
+    intent_check = evaluate_user_intent(text, history)
+    if intent_check.get("status") == "RESET":
+        return {
+            "is_reset": True,
+            "is_complete": False,
+            "slots": {
+                "event": None, 
+                "date": None, 
+                "needs_flight": None,
+                "departure_city": None, 
+                "budget": None
+            },
+            "follow_up_question": "No problem! Let's start fresh. What game do you want to see?"
+        }
+
     slots = req.current_slots or {
         "event": None, 
         "date": None, 
@@ -78,7 +98,6 @@ async def parse_intent(req: ChatParseRequest):
 
     # 4. If user said YES to flying, capture Departure City
     elif slots.get("needs_flight") and not slots.get("departure_city"):
-        # Clean conversational prefixes like "flying from" or "I am in"
         clean_city = re.sub(r'^(i am in|flying out of|departing from|from)\s*', '', text, flags=re.IGNORECASE).strip()
         slots["departure_city"] = clean_city
 
@@ -114,12 +133,12 @@ async def parse_intent(req: ChatParseRequest):
         }
 
     if not slots.get("departure_city"):
-        slots["departure_city"] = "Local"  # Default to Local if not provided
+        slots["departure_city"] = "Local"
 
     if not slots.get("budget"):
         return {
             "is_complete": False, "slots": slots,
-            "follow_up_question": f"What is your target total budget for this trip? e.g., $600"
+            "follow_up_question": "What is your target total budget for this trip? e.g., $600"
         }
 
     # All slots complete!
@@ -142,26 +161,31 @@ async def generate_itinerary_stream(req: ItineraryRequest):
         try:
             crew_runner = TravelCrew(inputs)
             
-            # Status Update 1
-            yield f"data: {json.dumps({'type': 'status', 'content': '🎟️ Scouting available tickets on StubHub & SeatGeek...'})}\n\n"
+            # Initial Status Ping
+            yield f"data: {json.dumps({'type': 'status', 'content': '🎟️ Scouting tickets, hotels, and flight itineraries...'})}\n\n"
             
-            # Status Update 2
-            yield f"data: {json.dumps({'type': 'status', 'content': '✈️ Searching flight options & airline schedules...'})}\n\n"
-            
-            # Status Update 3
-            yield f"data: {json.dumps({'type': 'status', 'content': '🏨 Finding top-rated hotels near the venue...'})}\n\n"
-            
-            # Status Update 4
-            yield f"data: {json.dumps({'type': 'status', 'content': '📋 Synthesizing full itinerary & cost breakdown...'})}\n\n"
-            
+            # Await Crew Execution
             result = await crew_runner.run()
-            yield f"data: {json.dumps({'type': 'token', 'content': str(result)})}\n\n"
+            
+            # Extract raw string output from CrewOutput object
+            final_markdown = str(result.raw) if hasattr(result, 'raw') else str(result)
+            
+            # Stream payload back to UI
+            yield f"data: {json.dumps({'type': 'token', 'content': final_markdown})}\n\n"
             yield "data: [DONE]\n\n"
 
         except Exception as e:
             yield f"data: {json.dumps({'type': 'error', 'content': str(e)})}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(), 
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Prevents Nginx/proxy response buffering
+        }
+    )
 
 
 # ==========================================
