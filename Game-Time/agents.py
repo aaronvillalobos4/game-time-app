@@ -224,4 +224,5 @@ class TravelCrew:
             verbose=False # Set to False for faster execution overhead
         )
 
-        return await crew.kickoff_async()
+        result = await crew.kickoff_async()
+        return str(result.raw)  # or str(result)
