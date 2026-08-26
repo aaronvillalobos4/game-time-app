@@ -39,18 +39,22 @@ RESET_TOOL_DEFINITION = {
 # =====================================================================
 
 def extract_slots(user_input: str, current_slots: dict | None = None) -> dict:
+    # Preserve existing slots
     slots = dict(current_slots or {})
     text = user_input.strip()
 
-    # 1. Flexible Date Matcher (works with or without "on"/"for")
-    date_pattern = r"\b(?:\b(?:on|for)\s+)?([A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b"
-    date_match = re.search(date_pattern, text, re.IGNORECASE)
+    # 1. Flexible Date Extractor (Matches standalone dates like 09/05/2026, 9/5/26, or "Sep 5")
+    date_regex = r"\b(?:\b(?:on|for)\s+)?((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:,\s*\d{4})?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b"
+    date_match = re.search(date_regex, text, re.IGNORECASE)
+    
     if date_match:
         slots["date"] = date_match.group(1).strip()
 
-    # 2. Extract Game Name (Only if text isn't JUST a date string)
-    is_just_date = re.fullmatch(r"^\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?$", text)
-    if not is_just_date:
+    # Check if the input is ONLY a date (e.g., "09/05/2026")
+    is_pure_date = bool(re.fullmatch(r"^(?:\b(?:on|for)\s+)?(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|[A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?)$", text, re.IGNORECASE))
+
+    # 2. Extract Game (NEVER overwrite 'game' if user is just answering with a date)
+    if not is_pure_date:
         game_match = re.search(
             r"\b(?:game|match|event)\s*[:\-]?\s*(.+?)(?=\s+(?:on|for|from|under)\b|$)",
             text,
@@ -59,14 +63,15 @@ def extract_slots(user_input: str, current_slots: dict | None = None) -> dict:
         if game_match:
             slots["game"] = game_match.group(1).strip(" ,.;")
         elif not slots.get("game"):
-            # If no explicit keyword was used, treat the raw input as the event matchup
+            # Only set raw text to game if we don't have a game slot yet AND it's not a pure date
             slots["game"] = text
 
-    # 3. Budget & Origin extraction
+    # 3. Budget Extractor
     budget_match = re.search(r"\$\s*([\d,]+(?:\.\d{1,2})?)", text)
     if budget_match:
         slots["budget"] = float(budget_match.group(1).replace(",", ""))
 
+    # 4. Origin/City Extractor
     origin_match = re.search(r"\bfrom\s+([A-Za-z][A-Za-z .'-]*?)(?=\s+(?:on|for|under)\b|[,.;]|$)", text, re.IGNORECASE)
     if origin_match:
         slots["origin"] = origin_match.group(1).strip()
