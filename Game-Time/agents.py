@@ -68,7 +68,14 @@ def get_missing_slots(slots: dict) -> list[str]:
     required_slots = ("game", "origin", "budget")
     return [slot for slot in required_slots if not slots.get(slot)]
 
-def evaluate_user_intent(user_input: str, session_history: dict):
+def evaluate_user_intent(user_input: str, session_history: list | dict):
+    # Extract slots safely regardless of type
+    current_slots = session_history.get("slots", {}) if isinstance(session_history, dict) else {}
+    updated_slots = extract_slots(user_input, current_slots)
+    
+    # Avoid dict key assignment if session_history is a list
+    if isinstance(session_history, dict):
+        session_history["slots"] = updated_slots
     """
     Acts as the entry guardrail. Checks if the user wants to reset 
     BEFORE triggering the heavy CrewAI execution pipeline.
