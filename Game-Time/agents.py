@@ -80,8 +80,10 @@ def extract_slots(user_input: str, current_slots: dict | None = None) -> dict:
 
 def get_missing_slots(slots: dict) -> list[str]:
     """Return required trip fields that have not been collected yet."""
-    required_slots = ("game", "origin", "budget")
+    # Add "date" to the required fields list!
+    required_slots = ("game", "date", "origin", "budget")
     return [slot for slot in required_slots if not slots.get(slot)]
+
 
 def evaluate_user_intent(user_input: str, session_history: list | dict):
     # 1. CHECK RESET GUARDRAIL FIRST
@@ -96,7 +98,7 @@ def evaluate_user_intent(user_input: str, session_history: list | dict):
             "follow_up_question": "Search cancelled! What new game do you want to see?"
         }
 
-    # 2. EXTRACT SLOTS ONLY AFTER CONFIRMING IT'S NOT A RESET
+    # 2. EXTRACT SLOTS
     current_slots = session_history.get("slots", {}) if isinstance(session_history, dict) else {}
     updated_slots = extract_slots(user_input, current_slots)
 
@@ -106,12 +108,18 @@ def evaluate_user_intent(user_input: str, session_history: list | dict):
     # 3. GATEKEEPER CHECK FOR MISSING SLOTS
     missing_slots = get_missing_slots(updated_slots)
     if missing_slots:
-        if "origin" in missing_slots:
+        first_missing = missing_slots[0]
+        
+        if first_missing == "game":
+            question = "What game or event do you want to attend?"
+        elif first_missing == "date":
+            question = f"Awesome! What date is the {updated_slots.get('game', 'game')}?"
+        elif first_missing == "origin":
             question = "Will you be flying in for the game, or are you local?"
-        elif "budget" in missing_slots:
+        elif first_missing == "budget":
             question = "What is your target budget for this trip?"
         else:
-            question = f"What is your {missing_slots[0]}?"
+            question = f"Please provide your {first_missing}."
 
         return {
             "is_reset": False,
