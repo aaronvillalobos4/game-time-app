@@ -16,11 +16,24 @@ app = FastAPI(title="Game Time API", version="1.0.0")
 # Enable CORS for Next.js frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust to specific domain in production
+    allow_origins=[
+        "https://www.game-time-bot.com",
+        "https://game-time-bot.com",
+        "http://localhost:3000"
+    ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
+
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """
+    Handles browser preflight OPTIONS requests directly to prevent 
+    CORS errors on Render cold starts.
+    """
+    return {}
 
 
 # ==========================================
