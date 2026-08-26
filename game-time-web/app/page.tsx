@@ -76,7 +76,19 @@ export default function Home() {
       }
 
       const parseData = await parseRes.json();
-      const updatedSlots = parseData.slots;
+      
+      // Reset flow if guardrail triggered reset
+      if (parseData.is_reset) {
+        setSlots({});
+        setMessages([
+          ...newMessages,
+          { sender: "bot", text: parseData.follow_up_question },
+        ]);
+        setLoading(false);
+        return;
+      }
+
+      const updatedSlots = parseData.slots || {};
       setSlots(updatedSlots);
 
       // Stop execution if any slots are missing
@@ -89,24 +101,28 @@ export default function Home() {
         return;
       }
 
-      // 2. All slots complete: trigger CrewAI pipeline
-      setMessages([
-        ...newMessages,
+      // Extract payload parameters directly to avoid async React state delays
+      const payload = {
+        event: updatedSlots.event || "",
+        date: updatedSlots.date || "",
+        departure_city: updatedSlots.departure_city || "Local",
+        budget: Number(updatedSlots.budget) || 0,
+      };
+
+      // 2. Add temporary loader message to chat UI
+      setMessages((prev) => [
+        ...prev,
         {
           sender: "bot",
-          text: `Got all the details! Scouting tickets, flights, and hotels for ${updatedSlots.event} on ${updatedSlots.date}...`,
+          text: `Got all the details! Scouting tickets, flights, and hotels for ${payload.event} on ${payload.date}...`,
         },
       ]);
 
+      // 3. Trigger CrewAI streaming endpoint
       const streamRes = await fetch("https://game-time-f7qt.onrender.com/api/itinerary-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event: updatedSlots.event,
-          date: updatedSlots.date,
-          departure_city: updatedSlots.departure_city || "Local",
-          budget: updatedSlots.budget,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (!streamRes.ok) {
@@ -123,56 +139,51 @@ export default function Home() {
       setItinerary("");
 
       let buffer = "";
-      let fullItineraryText = "";
+      let fullText = "";
 
+      // 4. Stream and process line by line
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
-        // Append chunk to stream buffer
         buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        
+        // Retain unparsed incomplete line in the buffer
+        buffer = lines.pop() || "";
 
-        // Split on double-newlines (SSE event boundary)
-        const events = buffer.split("\n\n");
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.includes("[DONE]")) continue;
 
-        // Keep incomplete trailing event chunk in the buffer
-        buffer = events.pop() || "";
-
-        for (const eventBlock of events) {
-          const line = eventBlock.trim();
-          if (!line || line.includes("[DONE]")) continue;
-
-          if (line.startsWith("data: ")) {
-            const rawData = line.replace("data: ", "").trim();
+          if (trimmed.startsWith("data: ")) {
+            const rawData = trimmed.slice(6).trim();
             try {
               const parsed = JSON.parse(rawData);
 
               if (parsed.type === "status") {
                 setStatusMessage(parsed.content);
-              } else if (parsed.type === "step" || parsed.type === "token") {
-                const stepContent = parsed.content || rawData;
+              } else if (parsed.type === "token" || parsed.type === "step") {
+                const chunk = parsed.content || "";
+                fullText += chunk;
 
-                // Append directly to Chat Stream
+                // Update bottom itinerary card
+                setItinerary(fullText.trim());
+
+                // Swap out loading loader message with the output text
                 setMessages((prev) => [
-                  ...prev,
-                  {
-                    sender: "bot",
-                    text: parsed.step_name
-                      ? `### ${parsed.step_name}\n\n${stepContent}`
-                      : stepContent,
-                  },
+                  ...prev.slice(0, -1),
+                  { sender: "bot", text: fullText.trim() },
                 ]);
-
-                // Accumulate full response for Itinerary Card at bottom
-                fullItineraryText += `\n\n${stepContent}`;
-                setItinerary(fullItineraryText.trim());
               }
-            } catch (err) {
-              // Fallback for unformatted raw text payloads
+            } catch (e) {
               if (rawData) {
-                setMessages((prev) => [...prev, { sender: "bot", text: rawData }]);
-                fullItineraryText += `\n\n${rawData}`;
-                setItinerary(fullItineraryText.trim());
+                fullText += rawData;
+                setItinerary(fullText.trim());
+                setMessages((prev) => [
+                  ...prev.slice(0, -1),
+                  { sender: "bot", text: fullText.trim() },
+                ]);
               }
             }
           }
@@ -249,7 +260,7 @@ export default function Home() {
 
       <div className="w-full max-w-3xl space-y-6 my-4">
 
-        {/* Header / Brand Logo (Hidden on Print) */}
+        {/* Header / Brand Logo */}
         <div className="flex flex-col items-center justify-center gap-2 text-center print:hidden">
           <Image
             src="/logo.png"
@@ -267,7 +278,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Chat Stream Window (Hidden on Print) */}
+        {/* Chat Stream Window */}
         <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl print:hidden">
           {messages.map((m, i) => (
             <div
@@ -311,7 +322,7 @@ export default function Home() {
           )}
         </div>
 
-        {/* Clickable Example Prompt Chips Above Input Form (Hidden on Print) */}
+        {/* Prompt Chips & Input Form */}
         <div className="space-y-3 print:hidden">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-400 font-medium">Try asking:</span>
@@ -353,7 +364,7 @@ export default function Home() {
           </form>
         </div>
 
-        {/* Error Display (Hidden on Print) */}
+        {/* Error Display */}
         {errorMsg && (
           <div className="bg-red-950/80 border border-red-800 text-red-200 p-4 rounded-xl text-sm text-left print:hidden">
             <p className="font-semibold">Request Error:</p>
@@ -369,7 +380,7 @@ export default function Home() {
                 Your Custom Itinerary
               </h2>
 
-              {/* Action Buttons (Hidden on Print) */}
+              {/* Action Buttons */}
               <div className="flex flex-wrap gap-2 print:hidden">
                 <button
                   onClick={handleCopy}
