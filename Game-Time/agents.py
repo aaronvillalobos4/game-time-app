@@ -180,7 +180,56 @@ class TravelCrew:
         if "origin" in self.inputs:
             self.inputs["origin"] = format_origin_location(str(self.inputs["origin"]))
 
-    # ... agent definitions (ticket_agent, flight_agent, hotel_agent, coordinator_agent) ...
+    # ==========================================
+    # AGENT DEFINITIONS
+    # ==========================================
+    def ticket_agent(self) -> Agent:
+        return Agent(
+            role="Sports Ticket Specialist",
+            goal="Find available stadium seating and current ticket pricing",
+            backstory="An expert sports ticket broker who finds best seat value and links.",
+            tools=[google_search_scraper],
+            llm=crew_llm,
+            verbose=False
+        )
+
+    def flight_agent(self) -> Agent:
+        return Agent(
+            role="Flight Booking Expert",
+            goal="Find optimal flight routes and pricing for fan travel",
+            backstory="A seasoned travel agent who specializes in roundtrip event flights.",
+            tools=[google_search_scraper],
+            llm=crew_llm,
+            verbose=False
+        )
+
+    def hotel_agent(self) -> Agent:
+        return Agent(
+            role="Hotel & Lodging Specialist",
+            goal="Find top-rated hotels close to the game venue",
+            backstory="A travel scout who specializes in conveniently located accommodations.",
+            tools=[google_search_scraper],
+            llm=crew_llm,
+            verbose=False
+        )
+
+    def coordinator_agent(self) -> Agent:
+        return Agent(
+            role="Sports Trip Coordinator",
+            goal="Synthesize tickets, flights, and hotels into a budget-friendly itinerary",
+            backstory="A master itinerary planner who structures trips under budget with markdown formatting.",
+            llm=crew_llm,
+            verbose=False
+        )
+
+    # ==========================================
+    # EXECUTION PIPELINE
+    # ==========================================
+    async def run(self):
+        ticket_agent_inst = self.ticket_agent()
+        hotel_agent_inst = self.hotel_agent()
+        coordinator_agent_inst = self.coordinator_agent()
+        # ... rest of your run code stays the same ...
 
     async def run(self):
         ticket_agent_inst = self.ticket_agent()
