@@ -215,6 +215,6 @@ async def generate_itinerary_stream(req: ItineraryRequest):
 # ==========================================
 # HEALTH CHECK
 # ==========================================
-@app.get("/", methods=["GET", "HEAD"])
+@app.api_route("/", methods=["GET", "HEAD"])
 def read_root():
     return {"status": "Game Time Backend API Running"}
