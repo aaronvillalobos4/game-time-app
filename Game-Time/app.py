@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
+from fastapi.responses import JSONResponse
+from fastapi import Request
 
 # Import CrewAI pipeline and guardrail intent evaluator from agents.py
 from agents import TravelCrew, evaluate_user_intent
@@ -26,6 +28,15 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Guarantees CORS headers are sent back even when Python encounters a 500 error."""
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+        headers={"Access-Control-Allow-Origin": "*"}
+    )
 
 @app.options("/{full_path:path}")
 async def options_handler(full_path: str):
