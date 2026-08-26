@@ -286,7 +286,7 @@ export default function Home() {
                 {statusMessage || PROGRESSIVE_LOADING_STEPS[loadingMsgIndex]}
               </p>
               <p className="text-[11px] text-slate-400">
-                This usually takes 30-45 seconds while agents scrape live pricing.
+                This usually takes 30-45 seconds while agents find live pricing.
               </p>
             </div>
           )}
@@ -375,17 +375,25 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="prose prose-invert max-w-none text-slate-200 text-sm leading-relaxed prose-headings:text-white prose-a:text-red-400 prose-table:border-collapse prose-th:bg-slate-800 prose-th:p-2 prose-td:p-2 prose-td:border-b prose-td:border-slate-700 print:prose:text-black print:prose-headings:text-black print:prose-a:text-red-700 print:prose-th:bg-gray-200 print:prose-td:border-gray-300">
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  a: ({ node, ...props }) => (
-                    <a {...props} target="_blank" rel="noopener noreferrer" className="text-red-400 underline hover:text-red-300 font-medium print:text-red-700" />
-                  )
-                }}
-              >
-                {itinerary}
-              </ReactMarkdown>
+            {/* Replace with parsed Markdown container: */}
+            <div className="bg-slate-900 text-slate-100 p-6 rounded-xl border border-slate-800 shadow-xl overflow-x-auto">
+              <div className="prose prose-invert max-w-none prose-table:w-full prose-table:border-collapse prose-th:border prose-th:border-slate-700 prose-th:p-3 prose-th:bg-slate-800 prose-td:border prose-td:border-slate-700 prose-td:p-3">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({ node, ...props }) => (
+                      <a 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="text-red-400 hover:text-red-300 underline font-semibold" 
+                        {...props} 
+                      />
+                    ),
+                  }}
+                >
+                  {itinerary}
+                </ReactMarkdown>
+              </div>
             </div>
           </div>
         )}
