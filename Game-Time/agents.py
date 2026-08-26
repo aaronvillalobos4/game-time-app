@@ -82,12 +82,14 @@ def evaluate_user_intent(user_input: str, session_history: dict):
         session_history.clear()  # Clear session context
         return "Search cancelled. What new game are you looking for?"
 
-    # 2. Extract slots (game, date, origin, budget) using lightweight LLM/parser
-    updated_slots = extract_slots(user_input, session_history.get("slots", {}))
-    session_history["slots"] = updated_slots
+    # Safely get current slots if session_history happens to be a dict, otherwise fallback to empty dict
+    current_slots = session_history.get("slots", {}) if isinstance(session_history, dict) else {}
+    
+    # Extract updated slots
+    updated_slots = extract_slots(user_input, current_slots)
 
     # 3. GATEKEEPER: Check if mandatory inputs are present
-    missing_slots = get_missing_slots(session_history["slots"]) # e.g. checks if 'origin' or 'game' is missing
+    missing_slots = get_missing_slots(updated_slots) # e.g. checks if 'origin' or 'game' is missing
     
     if missing_slots:
         # DO NOT call TravelCrew here. Ask the clarifying question instead.
@@ -97,7 +99,7 @@ def evaluate_user_intent(user_input: str, session_history: dict):
             return "What is your budget for this trip?"
 
     # 4. ALL SLOTS READY: Trigger CrewAI Agents now
-    crew = TravelCrew(inputs=session_history["slots"])
+    crew = TravelCrew(inputs=updated_slots)
     return crew.run()
 
     messages = [
