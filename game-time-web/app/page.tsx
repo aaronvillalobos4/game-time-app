@@ -43,7 +43,6 @@ export default function Home() {
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
   const [copied, setCopied] = useState(false);
 
-  // Cycle status messages every 6 seconds if loading
   useEffect(() => {
     if (!loading) return;
 
@@ -64,7 +63,6 @@ export default function Home() {
     setErrorMsg(null);
 
     try {
-      // 1. Send input to intent parser
       const parseRes = await fetch("https://game-time-f7qt.onrender.com/api/parse-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -76,22 +74,9 @@ export default function Home() {
       }
 
       const parseData = await parseRes.json();
-      
-      // Reset flow if guardrail triggered reset
-      if (parseData.is_reset) {
-        setSlots({});
-        setMessages([
-          ...newMessages,
-          { sender: "bot", text: parseData.follow_up_question },
-        ]);
-        setLoading(false);
-        return;
-      }
-
-      const updatedSlots = parseData.slots || {};
+      const updatedSlots = parseData.slots;
       setSlots(updatedSlots);
 
-      // Stop execution if any slots are missing
       if (!parseData.is_complete) {
         setMessages([
           ...newMessages,
@@ -101,28 +86,23 @@ export default function Home() {
         return;
       }
 
-      // Extract payload parameters directly to avoid async React state delays
-      const payload = {
-        event: updatedSlots.event || "",
-        date: updatedSlots.date || "",
-        departure_city: updatedSlots.departure_city || "Local",
-        budget: Number(updatedSlots.budget) || 0,
-      };
-
-      // 2. Add temporary loader message to chat UI
-      setMessages((prev) => [
-        ...prev,
+      setMessages([
+        ...newMessages,
         {
           sender: "bot",
-          text: `Got all the details! Scouting tickets, flights, and hotels for ${payload.event} on ${payload.date}...`,
+          text: `Got all the details! Scouting tickets, flights, and hotels for ${updatedSlots.event} on ${updatedSlots.date}...`,
         },
       ]);
 
-      // 3. Trigger CrewAI streaming endpoint
       const streamRes = await fetch("https://game-time-f7qt.onrender.com/api/itinerary-stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          event: updatedSlots.event,
+          date: updatedSlots.date,
+          departure_city: updatedSlots.departure_city || "Local",
+          budget: updatedSlots.budget,
+        }),
       });
 
       if (!streamRes.ok) {
@@ -139,53 +119,47 @@ export default function Home() {
       setItinerary("");
 
       let buffer = "";
-      let fullText = "";
+      let fullItineraryText = "";
 
-      // 4. Stream and process line by line
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        
-        // Retain unparsed incomplete line in the buffer
-        buffer = lines.pop() || "";
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
 
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || trimmed.includes("[DONE]")) continue;
+        for (const eventBlock of events) {
+          const line = eventBlock.trim();
+          if (!line || line.includes("[DONE]")) continue;
 
-          if (trimmed.startsWith("data: ")) {
-            const rawData = trimmed.slice(6).trim();
-            try {
-              const parsed = JSON.parse(rawData);
+          // Extract text payload whether line starts with "data: " or is raw SSE
+          const rawData = line.startsWith("data: ") ? line.replace("data: ", "").trim() : line;
+          let contentToAppend = "";
 
-              if (parsed.type === "status") {
-                setStatusMessage(parsed.content);
-              } else if (parsed.type === "token" || parsed.type === "step") {
-                const chunk = parsed.content || "";
-                fullText += chunk;
-
-                // Update bottom itinerary card
-                setItinerary(fullText.trim());
-
-                // Swap out loading loader message with the output text
-                setMessages((prev) => [
-                  ...prev.slice(0, -1),
-                  { sender: "bot", text: fullText.trim() },
-                ]);
-              }
-            } catch (e) {
-              if (rawData) {
-                fullText += rawData;
-                setItinerary(fullText.trim());
-                setMessages((prev) => [
-                  ...prev.slice(0, -1),
-                  { sender: "bot", text: fullText.trim() },
-                ]);
-              }
+          try {
+            const parsed = JSON.parse(rawData);
+            if (parsed.type === "status") {
+              setStatusMessage(parsed.content || "");
+              continue;
             }
+            contentToAppend = parsed.content || parsed.text || parsed.result || rawData;
+          } catch {
+            contentToAppend = rawData;
+          }
+
+          if (contentToAppend) {
+            fullItineraryText += `\n\n${contentToAppend}`;
+            const cleanText = fullItineraryText.trim();
+            setItinerary(cleanText);
+
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.sender === "bot" && last.text.startsWith("Got all the details!")) {
+                return [...prev, { sender: "bot", text: contentToAppend }];
+              }
+              return [...prev, { sender: "bot", text: contentToAppend }];
+            });
           }
         }
       }
@@ -240,7 +214,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center p-6 print:p-0 print:bg-white print:text-black">
-      {/* Google Tag (gtag.js) */}
       <Script
         strategy="afterInteractive"
         src="https://www.googletagmanager.com/gtag/js?id=G-CP8PCZ4F12"
@@ -260,7 +233,6 @@ export default function Home() {
 
       <div className="w-full max-w-3xl space-y-6 my-4">
 
-        {/* Header / Brand Logo */}
         <div className="flex flex-col items-center justify-center gap-2 text-center print:hidden">
           <Image
             src="/logo.png"
@@ -278,8 +250,7 @@ export default function Home() {
           </p>
         </div>
 
-        {/* Chat Stream Window */}
-        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl print:hidden">
+        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-[250px] max-h-[400px] overflow-y-auto shadow-xl print:hidden">
           {messages.map((m, i) => (
             <div
               key={i}
@@ -302,7 +273,6 @@ export default function Home() {
             </div>
           ))}
 
-          {/* Active Loading Animation Card */}
           {loading && (
             <div className="bg-[#334155] text-slate-200 p-4 rounded-xl rounded-bl-none max-w-[85%] space-y-2 border border-red-500/30 animate-pulse">
               <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
@@ -322,7 +292,6 @@ export default function Home() {
           )}
         </div>
 
-        {/* Prompt Chips & Input Form */}
         <div className="space-y-3 print:hidden">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-400 font-medium">Try asking:</span>
@@ -364,7 +333,6 @@ export default function Home() {
           </form>
         </div>
 
-        {/* Error Display */}
         {errorMsg && (
           <div className="bg-red-950/80 border border-red-800 text-red-200 p-4 rounded-xl text-sm text-left print:hidden">
             <p className="font-semibold">Request Error:</p>
@@ -372,7 +340,6 @@ export default function Home() {
           </div>
         )}
 
-        {/* Dedicated Output Itinerary Display */}
         {itinerary && (
           <div className="bg-[#1e293b] p-6 sm:p-8 rounded-2xl border border-slate-800 text-left space-y-4 shadow-xl print:bg-white print:text-black print:border-none print:shadow-none print:p-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-700 pb-3 gap-3 print:border-black">
@@ -380,7 +347,6 @@ export default function Home() {
                 Your Custom Itinerary
               </h2>
 
-              {/* Action Buttons */}
               <div className="flex flex-wrap gap-2 print:hidden">
                 <button
                   onClick={handleCopy}
