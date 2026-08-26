@@ -39,28 +39,38 @@ RESET_TOOL_DEFINITION = {
 # =====================================================================
 
 def extract_slots(user_input: str, current_slots: dict | None = None) -> dict:
-    """Extract common trip fields and preserve slots collected previously."""
     slots = dict(current_slots or {})
     text = user_input.strip()
 
-    patterns = {
-        "date": r"\b(?:on|for)\s+([A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)",
-        "budget": r"\$\s*([\d,]+(?:\.\d{1,2})?)",
-        "origin": r"\bfrom\s+([A-Za-z][A-Za-z .'-]*?)(?=\s+(?:on|for|under)\b|[,.;]|$)",
-    }
-    for slot, pattern in patterns.items():
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            value = match.group(1).strip()
-            slots[slot] = float(value.replace(",", "")) if slot == "budget" else value
+    # 1. Flexible Date Matcher (works with or without "on"/"for")
+    date_pattern = r"\b(?:\b(?:on|for)\s+)?([A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b"
+    date_match = re.search(date_pattern, text, re.IGNORECASE)
+    if date_match:
+        slots["date"] = date_match.group(1).strip()
 
-    game_match = re.search(
-        r"\b(?:game|match|event)\s*[:\-]?\s*(.+?)(?=\s+(?:on|for|from|under)\b|$)",
-        text,
-        re.IGNORECASE,
-    )
-    if game_match:
-        slots["game"] = game_match.group(1).strip(" ,.;")
+    # 2. Extract Game Name (Only if text isn't JUST a date string)
+    is_just_date = re.fullmatch(r"^\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?$", text)
+    if not is_just_date:
+        game_match = re.search(
+            r"\b(?:game|match|event)\s*[:\-]?\s*(.+?)(?=\s+(?:on|for|from|under)\b|$)",
+            text,
+            re.IGNORECASE,
+        )
+        if game_match:
+            slots["game"] = game_match.group(1).strip(" ,.;")
+        elif not slots.get("game"):
+            # If no explicit keyword was used, treat the raw input as the event matchup
+            slots["game"] = text
+
+    # 3. Budget & Origin extraction
+    budget_match = re.search(r"\$\s*([\d,]+(?:\.\d{1,2})?)", text)
+    if budget_match:
+        slots["budget"] = float(budget_match.group(1).replace(",", ""))
+
+    origin_match = re.search(r"\bfrom\s+([A-Za-z][A-Za-z .'-]*?)(?=\s+(?:on|for|under)\b|[,.;]|$)", text, re.IGNORECASE)
+    if origin_match:
+        slots["origin"] = origin_match.group(1).strip()
+
     return slots
 
 def get_missing_slots(slots: dict) -> list[str]:
