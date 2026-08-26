@@ -4,7 +4,7 @@ import requests
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import tool
 import openai
-from langchain_openai import ChatOpenAI
+from crewai import LLM
 
 # =====================================================================
 # 1. SYSTEM PROMPT & ROUTING TOOL
@@ -172,7 +172,7 @@ def google_search_scraper(query: str) -> str:
 # ==========================================
 # 4. CREWAI AGENTS & PIPELINE
 # ==========================================
-crew_llm = ChatOpenAI(model_name="gpt-5.6-terra", temperature=0.7)
+crew_llm = LLM(model="gpt-5.6-terra", temperature=0.7)
 
 class TravelCrew:
     def __init__(self, inputs: dict):
