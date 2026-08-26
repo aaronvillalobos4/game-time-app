@@ -2,13 +2,11 @@ import os
 import re
 import json
 import asyncio
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
-from fastapi.responses import JSONResponse
-from fastapi import Request
 
 # Import CrewAI pipeline and guardrail intent evaluator from agents.py
 from agents import TravelCrew, evaluate_user_intent
@@ -70,9 +68,17 @@ async def parse_intent(req: ChatParseRequest):
     text = req.message
     history = req.session_history or []
     
-    # Check for Global Reset/Cancel Intent via Guardrail evaluator
+    # Check for Global Reset/Cancel Intent via Guardrail evaluator safely
     intent_check = evaluate_user_intent(text, history)
-    if intent_check.get("status") == "RESET":
+    
+    # Safely evaluate string or dict output from intent evaluator
+    is_reset = False
+    if isinstance(intent_check, dict):
+        is_reset = (intent_check.get("status") == "RESET")
+    elif isinstance(intent_check, str):
+        is_reset = ("RESET" in intent_check.upper())
+
+    if is_reset:
         return {
             "is_reset": True,
             "is_complete": False,
