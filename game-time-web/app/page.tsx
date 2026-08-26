@@ -77,7 +77,8 @@ export default function Home() {
       const updatedSlots = parseData.slots;
       setSlots(updatedSlots);
 
-      if (!parseData.is_complete) {
+      if (!parseData.is_reset) {
+        setSlots({})
         setMessages([
           ...newMessages,
           { sender: "bot", text: parseData.follow_up_question },

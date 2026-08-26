@@ -69,41 +69,47 @@ def get_missing_slots(slots: dict) -> list[str]:
     return [slot for slot in required_slots if not slots.get(slot)]
 
 def evaluate_user_intent(user_input: str, session_history: list | dict):
-    # Extract slots safely regardless of type
+    # 1. CHECK RESET GUARDRAIL FIRST
+    reset_pattern = r"\b(?:cancel|restart|reset|start over|never mind)\b"
+    if re.search(reset_pattern, user_input, re.IGNORECASE):
+        if isinstance(session_history, dict):
+            session_history.clear()
+            
+        return {
+            "is_reset": True,
+            "slots": {},
+            "follow_up_question": "Search cancelled! What new game do you want to see?"
+        }
+
+    # 2. EXTRACT SLOTS ONLY AFTER CONFIRMING IT'S NOT A RESET
     current_slots = session_history.get("slots", {}) if isinstance(session_history, dict) else {}
     updated_slots = extract_slots(user_input, current_slots)
-    
-    # Avoid dict key assignment if session_history is a list
+
     if isinstance(session_history, dict):
         session_history["slots"] = updated_slots
-    """
-    Acts as the entry guardrail. Checks if the user wants to reset 
-    BEFORE triggering the heavy CrewAI execution pipeline.
-    """
-    #1 Check for Reset Guardrail
-    reset_pattern = r"\b(?:cancel|restart|reset|start over|never mind)\b"
-    intent_result = {
-        "status": "RESET" if re.search(reset_pattern, user_input, re.IGNORECASE) else "PROCEED"
-    }
-    if intent_result.get("status") == "RESET":
-        session_history.clear()  # Clear session context
-        return "Search cancelled. What new game are you looking for?"
 
-    # Safely get current slots if session_history happens to be a dict, otherwise fallback to empty dict
-    current_slots = session_history.get("slots", {}) if isinstance(session_history, dict) else {}
-    
-    # Extract updated slots
-    updated_slots = extract_slots(user_input, current_slots)
-
-    # 3. GATEKEEPER: Check if mandatory inputs are present
-    missing_slots = get_missing_slots(updated_slots) # e.g. checks if 'origin' or 'game' is missing
-    
+    # 3. GATEKEEPER CHECK FOR MISSING SLOTS
+    missing_slots = get_missing_slots(updated_slots)
     if missing_slots:
-        # DO NOT call TravelCrew here. Ask the clarifying question instead.
         if "origin" in missing_slots:
-            return "Got it! Will you be flying in for the game, or are you local?"
+            question = "Will you be flying in for the game, or are you local?"
         elif "budget" in missing_slots:
-            return "What is your budget for this trip?"
+            question = "What is your target budget for this trip?"
+        else:
+            question = f"What is your {missing_slots[0]}?"
+
+        return {
+            "is_reset": False,
+            "is_complete": False,
+            "slots": updated_slots,
+            "follow_up_question": question
+        }
+
+    return {
+        "is_reset": False,
+        "is_complete": True,
+        "slots": updated_slots
+    }
 
     # 4. ALL SLOTS READY: Trigger CrewAI Agents now
     crew = TravelCrew(inputs=updated_slots)
