@@ -1,404 +1,287 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Script from "next/script";
+import { FormEvent, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-const PROGRESSIVE_LOADING_STEPS = [
-  "🎟️ Scouting ticket options & stadium seating...",
-  "✈️ Comparing flight schedules & airline rates...",
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://game-time-f7qt.onrender.com";
+const INITIAL_MESSAGE = "Welcome to Game Time! What game or sports matchup do you want to go see?";
+const LOADING_STEPS = [
+  "🎟️ Scouting ticket options and stadium seating...",
+  "✈️ Comparing flight schedules and airline rates...",
   "🏨 Checking top-rated hotels near the arena...",
   "📊 Verifying prices against your budget...",
-  "📝 Formatting your custom weekend schedule..."
+  "📝 Formatting your custom trip itinerary...",
 ];
-
 const PROMPT_CHIPS = [
   "🏈 Cowboys vs Eagles in Dallas",
   "⚾ Astros vs Rangers in Houston",
   "🏀 Lakers in LA with $1500 budget",
-  "🏒 Golden Knights in Vegas flying from Austin"
+  "🏒 Golden Knights in Vegas flying from Austin",
 ];
 
+type Message = { sender: "user" | "bot"; text: string };
+type TripSlots = {
+  event?: string | null;
+  date?: string | null;
+  needs_flight?: boolean | null;
+  departure_city?: string | null;
+  budget?: number | null;
+};
+type ParseResponse = {
+  is_reset?: boolean;
+  is_complete: boolean;
+  slots: TripSlots;
+  follow_up_question?: string | null;
+};
+type StreamEvent = {
+  type?: "status" | "token" | "error";
+  content?: string;
+  text?: string;
+  result?: string;
+};
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Something went wrong. Please try again.";
+}
+
 export default function Home() {
-  const [messages, setMessages] = useState<Array<{ sender: "user" | "bot"; text: string }>>([
-    {
-      sender: "bot",
-      text: "Welcome to Game Time! What game do you want to go see?",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([{ sender: "bot", text: INITIAL_MESSAGE }]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [slots, setSlots] = useState<{
-    event?: string | null;
-    date?: string | null;
-    needs_flight?: boolean | null;
-    departure_city?: string | null;
-    budget?: number | null;
-  }>({});
+  const [slots, setSlots] = useState<TripSlots>({});
   const [itinerary, setItinerary] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState("");
+  const [loadingStep, setLoadingStep] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!loading) return;
-
-    const interval = setInterval(() => {
-      setLoadingMsgIndex((prev) => (prev + 1) % PROGRESSIVE_LOADING_STEPS.length);
-    }, 6000);
-
-    return () => clearInterval(interval);
+    const timer = window.setInterval(
+      () => setLoadingStep((step) => (step + 1) % LOADING_STEPS.length),
+      6000,
+    );
+    return () => window.clearInterval(timer);
   }, [loading]);
 
-  const handleSend = async (userText: string) => {
-    if (!userText.trim() || loading) return;
+  const addBotMessage = (text: string) => {
+    setMessages((current) => [...current, { sender: "bot", text }]);
+  };
 
-    const newMessages = [...messages, { sender: "user" as const, text: userText }];
-    setMessages(newMessages);
+  const generateItinerary = async (trip: TripSlots) => {
+    if (!trip.event || !trip.date || trip.budget == null) {
+      throw new Error("The trip was marked complete without all required details.");
+    }
+
+    addBotMessage(`Got it! Building your itinerary for ${trip.event} on ${trip.date}...`);
+    const response = await fetch(`${API_URL}/api/itinerary-stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event: trip.event,
+        date: trip.date,
+        departure_city: trip.departure_city || "Local",
+        budget: trip.budget,
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(`Itinerary request failed (${response.status}): ${await response.text()}`);
+    }
+    if (!response.body) throw new Error("The itinerary stream was empty.");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let completeText = "";
+    setItinerary("");
+
+    const processEvent = (block: string) => {
+      const data = block
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5).trimStart())
+        .join("\n")
+        .trim();
+      if (!data || data === "[DONE]") return;
+
+      let event: StreamEvent;
+      try {
+        event = JSON.parse(data) as StreamEvent;
+      } catch {
+        event = { type: "token", content: data };
+      }
+      if (event.type === "error") throw new Error(event.content || "The agents returned an error.");
+      if (event.type === "status") {
+        setStatus(event.content || "");
+        return;
+      }
+      const content = event.content ?? event.text ?? event.result ?? "";
+      if (content) {
+        completeText += content;
+        setItinerary(completeText.trim());
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
+      const blocks = buffer.split("\n\n");
+      buffer = blocks.pop() ?? "";
+      blocks.forEach(processEvent);
+      if (done) break;
+    }
+    if (buffer.trim()) processEvent(buffer);
+    if (!completeText.trim()) throw new Error("The agents finished without returning an itinerary.");
+  };
+
+  const handleSend = async (rawText: string) => {
+    const text = rawText.trim();
+    if (!text || loading) return;
+
+    setMessages((current) => [...current, { sender: "user", text }]);
     setInput("");
     setLoading(true);
-    setErrorMsg(null);
+    setLoadingStep(0);
+    setStatus("");
+    setError(null);
 
     try {
-      const parseRes = await fetch("https://game-time-f7qt.onrender.com/api/parse-intent", {
+      const response = await fetch(`${API_URL}/api/parse-intent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userText, current_slots: slots }),
+        body: JSON.stringify({ message: text, current_slots: slots }),
       });
+      if (!response.ok) throw new Error(`Conversation request failed (${response.status}).`);
 
-      if (!parseRes.ok) {
-        throw new Error(`Parse endpoint error: ${parseRes.statusText}`);
-      }
-
-      const parseData = await parseRes.json();
-      const updatedSlots = parseData.slots;
-      setSlots(updatedSlots);
-
-      if (!parseData.is_reset) {
-        setSlots({})
-        setMessages([
-          ...newMessages,
-          { sender: "bot", text: parseData.follow_up_question },
-        ]);
-        setLoading(false);
+      const parsed = (await response.json()) as ParseResponse;
+      if (parsed.is_reset) {
+        setSlots({});
+        setItinerary(null);
+        setMessages([{ sender: "bot", text: parsed.follow_up_question || INITIAL_MESSAGE }]);
         return;
       }
 
-      setMessages([
-        ...newMessages,
-        {
-          sender: "bot",
-          text: `Got all the details! Scouting tickets, flights, and hotels for ${updatedSlots.event} on ${updatedSlots.date}...`,
-        },
-      ]);
-
-      const streamRes = await fetch("https://game-time-f7qt.onrender.com/api/itinerary-stream", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event: updatedSlots.event,
-          date: updatedSlots.date,
-          departure_city: updatedSlots.departure_city || "Local",
-          budget: updatedSlots.budget,
-        }),
-      });
-
-      if (!streamRes.ok) {
-        const errText = await streamRes.text();
-        throw new Error(`Server returned status ${streamRes.status}: ${errText}`);
+      // Keep every field already collected. Only an explicit reset clears slots.
+      const updatedSlots = parsed.slots ?? slots;
+      setSlots(updatedSlots);
+      if (!parsed.is_complete) {
+        addBotMessage(parsed.follow_up_question || "What other trip detail can you provide?");
+        return;
       }
-
-      if (!streamRes.body) {
-        throw new Error("No readable stream received from server.");
-      }
-
-      const reader = streamRes.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      setItinerary("");
-
-      let buffer = "";
-      let fullItineraryText = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const events = buffer.split("\n\n");
-        buffer = events.pop() || "";
-
-        for (const eventBlock of events) {
-          const line = eventBlock.trim();
-          if (!line || line.includes("[DONE]")) continue;
-
-          // Extract text payload whether line starts with "data: " or is raw SSE
-          const rawData = line.startsWith("data: ") ? line.replace("data: ", "").trim() : line;
-          let contentToAppend = "";
-
-          try {
-            const parsed = JSON.parse(rawData);
-            if (parsed.type === "status") {
-              setStatusMessage(parsed.content || "");
-              continue;
-            }
-            contentToAppend = parsed.content || parsed.text || parsed.result || rawData;
-          } catch {
-            contentToAppend = rawData;
-          }
-
-          if (contentToAppend) {
-            fullItineraryText += `\n\n${contentToAppend}`;
-            const cleanText = fullItineraryText.trim();
-            setItinerary(cleanText);
-
-            setMessages((prev) => {
-              const last = prev[prev.length - 1];
-              if (last && last.sender === "bot" && last.text.startsWith("Got all the details!")) {
-                return [...prev, { sender: "bot", text: contentToAppend }];
-              }
-              return [...prev, { sender: "bot", text: contentToAppend }];
-            });
-          }
-        }
-      }
-    } catch (err: any) {
-      console.error("Error in conversational flow:", err);
-      setErrorMsg(err.message || "Failed to process request. Please check backend connection.");
+      await generateItinerary(updatedSlots);
+    } catch (caught: unknown) {
+      console.error("Game Time error:", caught);
+      setError(getErrorMessage(caught));
     } finally {
       setLoading(false);
-      setStatusMessage("");
+      setStatus("");
     }
   };
 
-  const handleChipClick = (chipText: string) => {
-    if (loading) return;
-    setInput(chipText);
-    handleSend(chipText);
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void handleSend(input);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (!itinerary) return;
-    navigator.clipboard.writeText(itinerary);
+    await navigator.clipboard.writeText(itinerary);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+    window.setTimeout(() => setCopied(false), 2500);
   };
 
   const handleEmail = () => {
     if (!itinerary) return;
     const subject = encodeURIComponent(`Game Time Itinerary: ${slots.event || "Sports Trip"}`);
-    const body = encodeURIComponent(itinerary);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:?subject=${subject}&body=${encodeURIComponent(itinerary)}`;
   };
 
   const handleShare = async () => {
     if (!itinerary) return;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Game Time Itinerary: ${slots.event || "Sports Trip"}`,
-          text: itinerary,
-        });
-      } catch (err) {
-        console.error("Share failed:", err);
-      }
-    } else {
-      handleCopy();
+    if (!navigator.share) return handleCopy();
+    try {
+      await navigator.share({ title: `Game Time: ${slots.event || "Sports Trip"}`, text: itinerary });
+    } catch (caught: unknown) {
+      if (caught instanceof DOMException && caught.name === "AbortError") return;
+      setError(getErrorMessage(caught));
     }
   };
 
+  const markdownComponents = {
+    a: (props: React.ComponentPropsWithoutRef<"a">) => (
+      <a {...props} target="_blank" rel="noopener noreferrer" className="font-semibold text-red-400 underline hover:text-red-300" />
+    ),
+  };
+
   return (
-    <main className="min-h-screen bg-[#0f172a] text-white flex flex-col items-center p-6 print:p-0 print:bg-white print:text-black">
-      <Script
-        strategy="afterInteractive"
-        src="https://www.googletagmanager.com/gtag/js?id=G-CP8PCZ4F12"
-      />
-      <Script
-        id="google-analytics"
-        strategy="afterInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            gtag('config', 'G-CP8PCZ4F12');
-          `,
-        }}
-      />
+    <main className="flex min-h-screen flex-col items-center bg-[#0f172a] p-6 text-white print:bg-white print:p-0 print:text-black">
+      <Script strategy="afterInteractive" src="https://www.googletagmanager.com/gtag/js?id=G-CP8PCZ4F12" />
+      <Script id="google-analytics" strategy="afterInteractive">
+        {`window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-CP8PCZ4F12');`}
+      </Script>
 
-      <div className="w-full max-w-3xl space-y-6 my-4">
+      <div className="my-4 w-full max-w-3xl space-y-6">
+        <header className="flex flex-col items-center gap-2 text-center print:hidden">
+          <Image src="/logo.png" alt="Game Time logo" width={100} height={100} priority className="h-auto max-h-20 w-auto object-contain" />
+          <h1 className="text-3xl font-extrabold tracking-tight text-red-600">Game Time</h1>
+          <p className="text-xs text-gray-400 sm:text-sm">Plan tickets, travel, and lodging for your next sports trip.</p>
+        </header>
 
-        <div className="flex flex-col items-center justify-center gap-2 text-center print:hidden">
-          <Image
-            src="/logo.png"
-            alt="Game Time Logo"
-            width={100}
-            height={100}
-            priority
-            className="h-auto w-auto max-h-20 object-contain"
-          />
-          <h1 className="text-3xl font-extrabold tracking-tight text-red-600">
-            Game Time
-          </h1>
-          <p className="text-gray-400 text-xs sm:text-sm">
-            Chat to plan your complete sports trip itinerary.
-          </p>
-        </div>
-
-        <div className="bg-[#1e293b] p-4 sm:p-6 rounded-2xl border border-slate-800 space-y-4 min-h-62.5 max-h-100 overflow-y-auto shadow-xl print:hidden">
-          {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`p-3 sm:p-4 rounded-xl text-sm max-w-[85%] ${
-                m.sender === "user"
-                  ? "bg-red-600 ml-auto text-white rounded-br-none"
-                  : "bg-[#334155] text-slate-200 rounded-bl-none"
-              }`}
-            >
-              <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
-                components={{
-                  a: ({ node, ...props }) => (
-                    <a {...props} target="_blank" rel="noopener noreferrer" className="text-red-400 underline hover:text-red-300 font-medium" />
-                  )
-                }}
-              >
-                {m.text}
-              </ReactMarkdown>
+        <section aria-label="Conversation" aria-live="polite" className="max-h-100 min-h-62.5 space-y-4 overflow-y-auto rounded-2xl border border-slate-800 bg-[#1e293b] p-4 shadow-xl sm:p-6 print:hidden">
+          {messages.map((message, index) => (
+            <div key={`${message.sender}-${index}`} className={`max-w-[85%] rounded-xl p-3 text-sm sm:p-4 ${message.sender === "user" ? "ml-auto rounded-br-none bg-red-600 text-white" : "rounded-bl-none bg-[#334155] text-slate-200"}`}>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{message.text}</ReactMarkdown>
             </div>
           ))}
-
           {loading && (
-            <div className="bg-[#334155] text-slate-200 p-4 rounded-xl rounded-bl-none max-w-[85%] space-y-2 border border-red-500/30 animate-pulse">
+            <div className="max-w-[85%] animate-pulse space-y-2 rounded-xl rounded-bl-none border border-red-500/30 bg-[#334155] p-4">
               <div className="flex items-center gap-2 text-xs font-semibold text-red-400">
-                <span className="relative flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                </span>
-                Game Time AI Working...
+                <span className="relative flex h-3 w-3"><span className="absolute h-full w-full animate-ping rounded-full bg-red-400 opacity-75" /><span className="relative h-3 w-3 rounded-full bg-red-500" /></span>
+                Game Time AI is working...
               </div>
-              <p className="text-sm text-white font-medium">
-                {statusMessage || PROGRESSIVE_LOADING_STEPS[loadingMsgIndex]}
-              </p>
-              <p className="text-[11px] text-slate-400">
-                This usually takes 30-45 seconds while agents find live pricing.
-              </p>
+              <p className="text-sm font-medium text-white">{status || LOADING_STEPS[loadingStep]}</p>
             </div>
           )}
-        </div>
+        </section>
 
-        <div className="space-y-3 print:hidden">
+        <section className="space-y-3 print:hidden">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-400 font-medium">Try asking:</span>
-            {PROMPT_CHIPS.map((chip, idx) => (
-              <button
-                key={idx}
-                type="button"
-                onClick={() => handleChipClick(chip)}
-                disabled={loading}
-                className="bg-[#1e293b] hover:bg-slate-700 hover:border-slate-500 text-slate-300 border border-slate-700/60 rounded-full px-3 py-1 text-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed select-none"
-              >
-                {chip}
-              </button>
-            ))}
+            <span className="text-xs font-medium text-slate-400">Try asking:</span>
+            {PROMPT_CHIPS.map((chip) => <button key={chip} type="button" onClick={() => void handleSend(chip)} disabled={loading} className="rounded-full border border-slate-700 bg-[#1e293b] px-3 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-50">{chip}</button>)}
           </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSend(input);
-            }}
-            className="flex gap-2"
-          >
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your matchup, date, city, or budget..."
-              disabled={loading}
-              className="flex-1 bg-[#1e293b] border border-slate-700 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500"
-            />
-            <button
-              type="submit"
-              disabled={loading || !input.trim()}
-              className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition-colors text-sm"
-            >
-              Send
-            </button>
+          <form onSubmit={handleSubmit} className="flex gap-2">
+            <label htmlFor="trip-message" className="sr-only">Message Game Time</label>
+            <input id="trip-message" value={input} onChange={(event) => setInput(event.target.value)} placeholder="Type your matchup, date, city, or budget..." disabled={loading} autoComplete="off" className="flex-1 rounded-xl border border-slate-700 bg-[#1e293b] px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500" />
+            <button type="submit" disabled={loading || !input.trim()} className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">Send</button>
           </form>
-        </div>
+        </section>
 
-        {errorMsg && (
-          <div className="bg-red-950/80 border border-red-800 text-red-200 p-4 rounded-xl text-sm text-left print:hidden">
-            <p className="font-semibold">Request Error:</p>
-            <p className="text-xs mt-1 text-red-300">{errorMsg}</p>
-          </div>
-        )}
+        {error && <div role="alert" className="rounded-xl border border-red-800 bg-red-950/80 p-4 text-sm text-red-200 print:hidden"><p className="font-semibold">Request error</p><p className="mt-1 text-xs text-red-300">{error}</p></div>}
 
         {itinerary && (
-          <div className="bg-[#1e293b] p-6 sm:p-8 rounded-2xl border border-slate-800 text-left space-y-4 shadow-xl print:bg-white print:text-black print:border-none print:shadow-none print:p-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-700 pb-3 gap-3 print:border-black">
-              <h2 className="text-xl font-bold text-white print:text-black">
-                Your Custom Itinerary
-              </h2>
-
+          <article className="space-y-4 rounded-2xl border border-slate-800 bg-[#1e293b] p-6 shadow-xl sm:p-8 print:border-none print:bg-white print:p-0 print:text-black print:shadow-none">
+            <div className="flex flex-col justify-between gap-3 border-b border-slate-700 pb-3 sm:flex-row sm:items-center">
+              <h2 className="text-xl font-bold text-white print:text-black">Your Custom Itinerary</h2>
               <div className="flex flex-wrap gap-2 print:hidden">
-                <button
-                  onClick={handleCopy}
-                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
-                >
-                  {copied ? "✓ Copied!" : "📋 Copy"}
-                </button>
-                <button
-                  onClick={handleEmail}
-                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
-                >
-                  ✉️ Email
-                </button>
-                <button
-                  onClick={handleShare}
-                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-medium py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
-                >
-                  📱 Share / Text
-                </button>
-                <button
-                  onClick={handlePrint}
-                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1.5"
-                >
-                  🖨️ PDF
-                </button>
+                <button onClick={() => void handleCopy()} className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs hover:bg-slate-600">{copied ? "✓ Copied!" : "📋 Copy"}</button>
+                <button onClick={handleEmail} className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs hover:bg-slate-600">✉️ Email</button>
+                <button onClick={() => void handleShare()} className="rounded-lg bg-slate-700 px-3 py-1.5 text-xs hover:bg-slate-600">📱 Share</button>
+                <button onClick={() => window.print()} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold hover:bg-red-700">🖨️ PDF</button>
               </div>
             </div>
-
-            {/* Replace with parsed Markdown container: */}
-            <div className="bg-slate-900 text-slate-100 p-6 rounded-xl border border-slate-800 shadow-xl overflow-x-auto">
-              <div className="prose prose-invert max-w-none prose-table:w-full prose-table:border-collapse prose-th:border prose-th:border-slate-700 prose-th:p-3 prose-th:bg-slate-800 prose-td:border prose-td:border-slate-700 prose-td:p-3">
-                <ReactMarkdown 
-                  remarkPlugins={[remarkGfm]}
-                  components={{
-                    a: ({ node, ...props }) => (
-                      <a 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="text-red-400 hover:text-red-300 underline font-semibold" 
-                        {...props} 
-                      />
-                    ),
-                  }}
-                >
-                  {itinerary}
-                </ReactMarkdown>
+            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-6 text-slate-100 print:border-none print:bg-white print:p-0 print:text-black">
+              <div className="prose prose-invert max-w-none prose-table:w-full prose-table:border-collapse prose-th:border prose-th:border-slate-700 prose-th:bg-slate-800 prose-th:p-3 prose-td:border prose-td:border-slate-700 prose-td:p-3 print:prose-not-invert">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{itinerary}</ReactMarkdown>
               </div>
             </div>
-          </div>
+          </article>
         )}
-
       </div>
     </main>
   );

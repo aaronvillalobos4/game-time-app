@@ -1,319 +1,261 @@
+"""Conversation guardrails and CrewAI itinerary agents for Game Time."""
+
 import os
 import re
-
-try:
-    import requests
-except ImportError:  # pragma: no cover - optional dependency for search tool
-    requests = None  # type: ignore[assignment]
-
-from crewai import Agent, Task, Crew, Process, LLM
+from typing import Any
+import requests
+from crewai import Agent, Crew, LLM, Process, Task
 from crewai.tools import tool
-import openai
-
-# =====================================================================
-# 1. SYSTEM PROMPT & ROUTING TOOL
-# =====================================================================
-
-GAME_TIME_SYSTEM_PROMPT = """
-You are Game Time, a highly skilled travel and event planning assistant.
-
-CRITICAL ROUTING RULES:
-1. Before extracting event details, check if the user wants to cancel, restart, 
-   or search for a different game (e.g., "start over", "never mind", "cancel").
-2. If a reset intent is detected, call the `reset_search` tool immediately.
-"""
-
-RESET_TOOL_DEFINITION = {
-    "type": "function",
-    "function": {
-        "name": "reset_search",
-        "description": "Clears current context and restarts the search flow.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "reason": {"type": "string", "description": "Reason for reset"}
-            },
-            "required": []
-        }
-    }
-}
-
-# =====================================================================
-# 2. ENTRYPOINT ROUTER FUNCTION
-# =====================================================================
-
-def extract_slots(user_input: str, current_slots: dict | None = None) -> dict:
-    # Preserve existing slots
-    slots = dict(current_slots or {})
-    text = user_input.strip()
-
-    # 1. Flexible Date Extractor (Matches standalone dates like 09/05/2026, 9/5/26, or "Sep 5")
-    date_regex = r"\b(?:\b(?:on|for)\s+)?((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:,\s*\d{4})?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b"
-    date_match = re.search(date_regex, text, re.IGNORECASE)
-    
-    if date_match:
-        slots["date"] = date_match.group(1).strip()
-
-    # Check if the input is ONLY a date (e.g., "09/05/2026")
-    is_pure_date = bool(re.fullmatch(r"^(?:\b(?:on|for)\s+)?(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|[A-Za-z]+\s+\d{1,2}(?:,\s*\d{4})?)$", text, re.IGNORECASE))
-
-    # 2. Extract Game (NEVER overwrite 'game' if user is just answering with a date)
-    if not is_pure_date:
-        game_match = re.search(
-            r"\b(?:game|match|event)\s*[:\-]?\s*(.+?)(?=\s+(?:on|for|from|under)\b|$)",
-            text,
-            re.IGNORECASE,
-        )
-        if game_match:
-            slots["game"] = game_match.group(1).strip(" ,.;")
-        elif not slots.get("game"):
-            # Only set raw text to game if we don't have a game slot yet AND it's not a pure date
-            slots["game"] = text
-
-    # 3. Budget Extractor
-    budget_match = re.search(r"\$\s*([\d,]+(?:\.\d{1,2})?)", text)
-    if budget_match:
-        slots["budget"] = float(budget_match.group(1).replace(",", ""))
-
-    # 4. Origin/City Extractor
-    origin_match = re.search(r"\bfrom\s+([A-Za-z][A-Za-z .'-]*?)(?=\s+(?:on|for|under)\b|[,.;]|$)", text, re.IGNORECASE)
-    if origin_match:
-        slots["origin"] = origin_match.group(1).strip()
-
-    return slots
-
-def get_missing_slots(slots: dict) -> list[str]:
-    """Return required trip fields that have not been collected yet."""
-    # Add "date" to the required fields list!
-    required_slots = ("game", "date", "origin", "budget")
-    return [slot for slot in required_slots if not slots.get(slot)]
 
 
-def evaluate_user_intent(user_input: str, session_history: list | dict):
-    # 1. CHECK RESET GUARDRAIL FIRST
-    reset_pattern = r"\b(?:cancel|restart|reset|start over|never mind)\b"
-    if re.search(reset_pattern, user_input, re.IGNORECASE):
+RESET_PATTERN = re.compile(
+    r"\b(?:cancel|restart|reset|start over|never mind)\b",
+    re.IGNORECASE,
+)
+
+crew_llm = LLM(
+    model=os.getenv("CREWAI_MODEL", "gpt-4o"),
+    temperature=0.7,
+)
+
+
+def evaluate_user_intent(
+    user_input: str,
+    session_history: list[Any] | dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Detect reset requests before the API performs its normal slot parsing.
+
+    The ``status`` field maintains the contract expected by ``app.py``. The
+    boolean fields give callers a consistent response shape if this function is
+    reused elsewhere.
+    """
+    if RESET_PATTERN.search(user_input):
         if isinstance(session_history, dict):
             session_history.clear()
-            
+
         return {
+            "status": "RESET",
             "is_reset": True,
-            "slots": {},
-            "follow_up_question": "Search cancelled! What new game do you want to see?"
-        }
-
-    # 2. EXTRACT SLOTS
-    current_slots = session_history.get("slots", {}) if isinstance(session_history, dict) else {}
-    updated_slots = extract_slots(user_input, current_slots)
-
-    if isinstance(session_history, dict):
-        session_history["slots"] = updated_slots
-
-    # 3. GATEKEEPER CHECK FOR MISSING SLOTS
-    missing_slots = get_missing_slots(updated_slots)
-    if missing_slots:
-        first_missing = missing_slots[0]
-        
-        if first_missing == "game":
-            question = "What game or event do you want to attend?"
-        elif first_missing == "date":
-            question = f"Awesome! What date is the {updated_slots.get('game', 'game')}?"
-        elif first_missing == "origin":
-            question = "Will you be flying in for the game, or are you local?"
-        elif first_missing == "budget":
-            question = "What is your target budget for this trip?"
-        else:
-            question = f"Please provide your {first_missing}."
-
-        return {
-            "is_reset": False,
             "is_complete": False,
-            "slots": updated_slots,
-            "follow_up_question": question
+            "slots": {},
+            "follow_up_question": (
+                "Search cancelled! What new game do you want to see?"
+            ),
         }
 
     return {
+        "status": "PROCEED",
         "is_reset": False,
-        "is_complete": True,
-        "slots": updated_slots
+        "is_complete": False,
     }
 
-    # 4. ALL SLOTS READY: Trigger CrewAI Agents now
-    crew = TravelCrew(inputs=updated_slots)
-    return crew.run()
-
-    messages = [
-        {"role": "system", "content": GAME_TIME_SYSTEM_PROMPT},
-        *session_history,
-        {"role": "user", "content": user_input}
-    ]
-
-    response = openai.chat.completions.create(
-        model="gpt-5.6-sol",
-        messages=messages,
-        tools=[RESET_TOOL_DEFINITION],
-        tool_choice="auto"
-    )
-
-    # Check if LLM requested reset_search tool call
-    message = response.choices[0].message
-    if message.tool_calls:
-        for tool_call in message.tool_calls:
-            if tool_call.function.name == "reset_search":
-                return {"status": "RESET", "message": "Search reset requested."}
-
-    return {"status": "PROCEED", "content": message.content}
-
-
-# ==========================================
-# 3. HELPER FUNCTIONS & CUSTOM TOOLS
-# ==========================================
 
 def format_origin_location(raw_origin: str) -> str:
-    if not raw_origin:
-        return ""
+    """Normalize a city/state string while preserving the local-trip marker."""
     cleaned = raw_origin.strip()
-    parts = [p.strip() for p in re.split(r'[, ]+', cleaned) if p.strip()]
+    if not cleaned:
+        return ""
+    if cleaned.casefold() == "local":
+        return "Local"
+
+    parts = [part for part in re.split(r"[,\s]+", cleaned) if part]
     if len(parts) >= 2 and len(parts[-1]) == 2:
         return f"{' '.join(parts[:-1]).title()}, {parts[-1].upper()}"
     return cleaned.title()
 
-@tool("Google Search Scraper")
-def google_search_scraper(query: str) -> str:
-    """Scrapes Google Search results for real-time ticket, flight, and hotel info."""
-    api_key = os.environ.get("SERPER_API_KEY", "")
+
+@tool("Google Search")
+def google_search(query: str) -> str:
+    """Search the web for current booking options through the Serper API."""
+    api_key = os.getenv("SERPER_API_KEY")
     if not api_key:
-        return "Error: SERPER_API_KEY environment variable is not set."
+        return "Search unavailable: SERPER_API_KEY is not configured."
 
-    url = "https://google.serper.dev/search"
-    payload = {"q": query, "num": 3}
-    headers = {'X-API-KEY': api_key, 'Content-Type': 'application/json'}
-    
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=12)
-        if response.status_code == 200:
-            results = response.json()
-            output = []
-            for item in results.get("organic", []):
-                output.append(f"Title: {item.get('title')}\nLink: {item.get('link')}\nInfo: {item.get('snippet')}\n---")
-            return "\n".join(output) if output else "No results found."
-        return f"Search scraper failed. Status code: {response.status_code}"
-    except Exception as e:
-        return f"Error executing search scrape: {str(e)}"
+        response = requests.post(
+            "https://google.serper.dev/search",
+            headers={
+                "X-API-KEY": api_key,
+                "Content-Type": "application/json",
+            },
+            json={"q": query, "num": 3},
+            timeout=12,
+        )
+        response.raise_for_status()
+        results = response.json()
+    except requests.RequestException as exc:
+        return f"Search request failed: {exc}"
+    except ValueError:
+        return "Search request failed: Serper returned invalid JSON."
 
+    options = []
+    for item in results.get("organic", []):
+        title = item.get("title", "Untitled result")
+        link = item.get("link", "No link provided")
+        snippet = item.get("snippet", "No description provided")
+        options.append(f"Title: {title}\nLink: {link}\nInfo: {snippet}")
 
-# ==========================================
-# 4. CREWAI AGENTS & PIPELINE
-# ==========================================
-crew_llm = LLM(model="gpt-4o", temperature=0.7)
+    return "\n---\n".join(options) if options else "No search results found."
+
 
 class TravelCrew:
-    def __init__(self, inputs: dict):
-        self.inputs = inputs
-        if "origin" in self.inputs:
-            self.inputs["origin"] = format_origin_location(str(self.inputs["origin"]))
+    """Build and execute the ticket, hotel, flight, and coordinator crew."""
 
-    # ==========================================
-    # AGENT DEFINITIONS
-    # ==========================================
+    def __init__(self, inputs: dict[str, Any]):
+        self.inputs = dict(inputs)
+        self.inputs["origin"] = format_origin_location(
+            str(self.inputs.get("origin", ""))
+        )
+
     def ticket_agent(self) -> Agent:
         return Agent(
             role="Sports Ticket Specialist",
             goal="Find available stadium seating and current ticket pricing",
-            backstory="An expert sports ticket broker who finds best seat value and links.",
-            tools=[google_search_scraper],
+            backstory=(
+                "An expert sports ticket broker who finds strong seat value and "
+                "provides direct booking links."
+            ),
+            tools=[google_search],
             llm=crew_llm,
-            verbose=False
+            verbose=False,
         )
 
     def flight_agent(self) -> Agent:
         return Agent(
             role="Flight Booking Expert",
-            goal="Find optimal flight routes and pricing for fan travel",
-            backstory="A seasoned travel agent who specializes in roundtrip event flights.",
-            tools=[google_search_scraper],
+            goal="Find practical flight routes and pricing for sports travel",
+            backstory=(
+                "A travel agent who compares flight schedules, total prices, "
+                "and booking options for event trips."
+            ),
+            tools=[google_search],
             llm=crew_llm,
-            verbose=False
+            verbose=False,
         )
 
     def hotel_agent(self) -> Agent:
         return Agent(
-            role="Hotel & Lodging Specialist",
-            goal="Find top-rated hotels close to the game venue",
-            backstory="A travel scout who specializes in conveniently located accommodations.",
-            tools=[google_search_scraper],
+            role="Hotel and Lodging Specialist",
+            goal="Find well-rated lodging close to the game venue",
+            backstory=(
+                "A lodging specialist who balances location, guest ratings, "
+                "price, and convenient booking options."
+            ),
+            tools=[google_search],
             llm=crew_llm,
-            verbose=False
+            verbose=False,
         )
 
     def coordinator_agent(self) -> Agent:
         return Agent(
             role="Sports Trip Coordinator",
-            goal="Synthesize tickets, flights, and hotels into a budget-friendly itinerary",
-            backstory="A master itinerary planner who structures trips under budget with markdown formatting.",
+            goal=(
+                "Turn ticket, lodging, and flight research into a useful "
+                "itinerary that respects the user's total budget"
+            ),
+            backstory=(
+                "An experienced itinerary planner who clearly identifies "
+                "estimated prices, assumptions, and booking links."
+            ),
             llm=crew_llm,
-            verbose=False
+            verbose=False,
         )
 
-    # ==========================================
-    # EXECUTION PIPELINE
-    # ==========================================
-    async def run(self):
-        ticket_agent_inst = self.ticket_agent()
-        hotel_agent_inst = self.hotel_agent()
-        coordinator_agent_inst = self.coordinator_agent()
-        # ... rest of your run code stays the same ...
+    def _validate_inputs(self) -> None:
+        missing = [
+            field
+            for field in ("game", "date", "budget")
+            if self.inputs.get(field) in (None, "")
+        ]
+        if missing:
+            raise ValueError(f"Missing required trip inputs: {', '.join(missing)}")
 
-    async def run(self):
-        ticket_agent_inst = self.ticket_agent()
-        hotel_agent_inst = self.hotel_agent()
-        coordinator_agent_inst = self.coordinator_agent()
+        budget = self.inputs["budget"]
+        if isinstance(budget, bool) or not isinstance(budget, (int, float)):
+            raise ValueError("Trip budget must be a number.")
+        if budget <= 0:
+            raise ValueError("Trip budget must be greater than zero.")
 
-        is_local = self.inputs.get('origin', '').lower() in ['local', 'none', '']
+    async def run(self) -> str:
+        """Run research tasks concurrently, then synthesize their results."""
+        self._validate_inputs()
 
-        # 1. MARK SCRAPING TASKS AS ASYNCHRONOUS (Run in Parallel)
+        ticket_agent = self.ticket_agent()
+        hotel_agent = self.hotel_agent()
+        coordinator_agent = self.coordinator_agent()
+
         ticket_task = Task(
-            description=f"Find 2 ticket options for {self.inputs.get('game')} on {self.inputs.get('date')}.",
-            expected_output="2 ticket options with seat details, prices, and booking links.",
-            agent=ticket_agent_inst,
-            async_execution=True  # <-- Enables parallel execution
+            description=(
+                f"Find two bookable ticket options for {self.inputs['game']} "
+                f"on {self.inputs['date']}. Include current listed price, seat "
+                "details, and the direct source link. Do not invent availability."
+            ),
+            expected_output=(
+                "Two ticket options with seat details, listed prices, source "
+                "names, and booking links."
+            ),
+            agent=ticket_agent,
+            async_execution=True,
         )
 
         hotel_task = Task(
-            description=f"Search 2 top-rated hotels close to the venue for {self.inputs.get('game')}.",
-            expected_output="2 hotel options with nightly rates, ratings, and booking links.",
-            agent=hotel_agent_inst,
-            async_execution=True  # <-- Enables parallel execution
+            description=(
+                f"Find two well-rated hotels near the venue for "
+                f"{self.inputs['game']} around {self.inputs['date']}. Include "
+                "nightly rate, rating, location information, and source link."
+            ),
+            expected_output=(
+                "Two hotel options with nightly rates, ratings, locations, "
+                "source names, and booking links."
+            ),
+            agent=hotel_agent,
+            async_execution=True,
         )
 
-        tasks = [ticket_task, hotel_task]
+        research_tasks = [ticket_task, hotel_task]
+        agents = [ticket_agent, hotel_agent]
 
-        if not is_local:
-            flight_agent_inst = self.flight_agent()
+        if self.inputs["origin"].casefold() not in {"", "local", "none"}:
+            flight_agent = self.flight_agent()
             flight_task = Task(
-                description=f"Search flights from {self.inputs.get('origin')} for {self.inputs.get('date')}.",
-                expected_output="Flight options with numbers, times, prices, and booking links.",
-                agent=flight_agent_inst,
-                async_execution=True  # <-- Enables parallel execution
+                description=(
+                    f"Find practical flight options from {self.inputs['origin']} "
+                    f"for attending {self.inputs['game']} on "
+                    f"{self.inputs['date']}. Include times, total listed price, "
+                    "airline, and source link. Clearly state date assumptions."
+                ),
+                expected_output=(
+                    "Flight options with airlines, schedules, listed prices, "
+                    "date assumptions, source names, and booking links."
+                ),
+                agent=flight_agent,
+                async_execution=True,
             )
-            tasks.append(flight_task)
+            research_tasks.append(flight_task)
+            agents.append(flight_agent)
 
-        # 2. FINAL SYNTHESIS TASK (Runs sequentially AFTER parallel tasks finish)
         coordinator_task = Task(
-            description=f"Synthesize ticket, hotel, and flight choices into a plan under ${self.inputs.get('budget')}.",
-            expected_output="A styled markdown itinerary with budget breakdown table and booking links.",
-            agent=coordinator_agent_inst,
-            async_execution=False  # Must wait for previous tasks to complete
+            description=(
+                f"Using only the supplied research, create a concise itinerary "
+                f"for {self.inputs['game']} on {self.inputs['date']} with a total "
+                f"target budget of ${self.inputs['budget']:,.2f}. Provide a "
+                "budget table, estimated total, useful schedule, assumptions, "
+                "and booking links. Never claim that a booking was made. If the "
+                "options exceed the budget, say so and identify the shortfall."
+            ),
+            expected_output=(
+                "A polished Markdown itinerary with a schedule, budget breakdown, "
+                "estimated total, assumptions, and source booking links."
+            ),
+            agent=coordinator_agent,
+            context=research_tasks,
         )
-        tasks.append(coordinator_task)
 
-        # 3. INITIALIZE CREW
         crew = Crew(
-            agents=[t.agent for t in tasks],
-            tasks=tasks,
-            process=Process.sequential, # Keep sequential so coordinator waits for parallel tasks
-            verbose=False # Set to False for faster execution overhead
+            agents=[*agents, coordinator_agent],
+            tasks=[*research_tasks, coordinator_task],
+            process=Process.sequential,
+            verbose=False,
         )
-
         result = await crew.kickoff_async()
-        return str(result.raw)  # or str(result)
+        return str(result.raw) if hasattr(result, "raw") else str(result)
