@@ -1,10 +1,14 @@
 import os
 import re
-import requests
+
+try:
+    import requests
+except ImportError:  # pragma: no cover - optional dependency for search tool
+    requests = None  # type: ignore[assignment]
+
 from crewai import Agent, Task, Crew, Process, LLM
 from crewai.tools import tool
 import openai
-from crewai import LLM
 
 # =====================================================================
 # 1. SYSTEM PROMPT & ROUTING TOOL
