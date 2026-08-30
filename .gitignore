@@ -8,3 +8,11 @@
 **/node_modules/
 **/.next/
 **/.env.local
+
+# Local secrets
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
