@@ -212,7 +212,7 @@ export default function Home() {
 
   const markdownComponents = {
     a: (props: React.ComponentPropsWithoutRef<"a">) => (
-      <a {...props} target="_blank" rel="noopener noreferrer" className="font-semibold text-red-400 underline hover:text-red-300" />
+      <a {...props} target="_blank" rel="sponsored noopener noreferrer" className="font-semibold text-red-400 underline hover:text-red-300" />
     ),
   };
 
@@ -275,6 +275,9 @@ export default function Home() {
                 <button onClick={() => window.print()} className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold hover:bg-red-700">🖨️ PDF</button>
               </div>
             </div>
+            <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-100 print:border-gray-400 print:bg-white print:text-black">
+              Game Time may earn a commission when you book through links in this itinerary, at no additional cost to you.
+            </p>
             <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-6 text-slate-100 print:border-none print:bg-white print:p-0 print:text-black">
               <div className="prose prose-invert max-w-none prose-table:w-full prose-table:border-collapse prose-th:border prose-th:border-slate-700 prose-th:bg-slate-800 prose-th:p-3 prose-td:border prose-td:border-slate-700 prose-td:p-3 print:prose-not-invert">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{itinerary}</ReactMarkdown>
