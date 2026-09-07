@@ -242,7 +242,7 @@ export default function Home() {
 
       <div className="my-4 w-full max-w-3xl space-y-6">
         <header className="flex flex-col items-center gap-2 text-center print:hidden">
-          <Image src="/logo.png" alt="Game Time logo" width={100} height={100} priority className="h-auto max-h-20 w-auto object-contain" />
+          <Image src="/logo.png" alt="Game Time logo" width={200} height={200} priority className="h-auto w-40 object-contain sm:w-50" />
           <h1 className="text-3xl font-extrabold tracking-tight text-red-600">Game Time</h1>
           <p className="text-xs text-gray-400 sm:text-sm">Plan tickets, travel, and lodging for your next sports trip.</p>
         </header>
