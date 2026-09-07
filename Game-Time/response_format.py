@@ -21,9 +21,23 @@ A short overview, then bullets with **Matchup**, **Date**, **Venue / city**,
 **Travel origin**, and **Target budget**. Use only supplied facts; mark unknowns TBD.
 
 ## 📅 Game-Day Plan
-A table with columns Time | Activity | Details. Include the timezone for verified
-times. Mark suggested travel/arrival times as suggestions and unknown kickoff as
-TBD. Do not invent an event time to fill the table.
+A chronological hour-by-hour table with columns Time | Activity | Details,
+covering the relevant game-day window from preparation/departure through return
+to the hotel or home. Use one row per hour, including continuing activities during
+the game or a long journey; preserve exact verified start times even if they fall
+between hourly rows. Include sensible travel, parking/security, meals, and rest
+buffers. Do not schedule sightseeing during the game or while in transit.
+
+State the date and destination timezone above the table. Mark planning times as
+'Suggested' and game duration/end times as estimates, never confirmed facts.
+Use verified kickoff/start and flight times when supplied, noting origin timezone
+for departures and destination timezone for arrivals. Do not fabricate flight
+times, gate-opening times, hotel check-in availability, or attraction hours.
+If kickoff is unverified, say 'Game start: TBD' and use hourly relative slots
+such as '4 hours before start', '3 hours before start', and '1 hour after the
+estimated end' instead of inventing clock times. State that the plan will shift
+once the start time is confirmed. Optional meals/activities remain labeled optional
+and must respect the budget rules below.
 
 ## 🎟️ Ticket Options
 Numbered options with bold labels, short seat/price details, and exact booking links.
@@ -36,9 +50,29 @@ For flights, use short bullets with researched routes, prices, and exact links.
 For local/driving trips use the heading '## 🚗 Getting There' and omit flights.
 
 ## 💰 Budget Breakdown
-A table with columns Item | Quantity / basis | Estimated cost | Notes. Total only
-one recommended combination, not all alternative options added together. Show
+A table with columns Item | Quantity / basis | Estimated cost | Booking link.
+Include explicit rows for Game tickets, Hotel, and Flights when flights are needed.
+For driving/local trips omit paid flight options and state 'Flights: not needed'.
+For each applicable row, include the researched numeric price or estimated range,
+currency, and a descriptive clickable Markdown booking link for the SAME option.
+Repeat the option's supplied booking URL exactly, retaining all affiliate/query
+parameters. If only a provider search page is available, label it 'Search tickets',
+'Search hotels', or 'Search flights', not a confirmed bookable offer. Never invent
+a booking URL. If none is available, write 'Booking link unavailable'.
+
+Show ticket count and per-ticket estimate; hotel rooms, nights, nightly rate and
+stay subtotal; and flight traveler count, one-way/round-trip basis and fare subtotal.
+If party size or stay duration is unspecified, explicitly label planning assumptions
+(such as one traveler and one night) so users can correct them. Put fee/tax/baggage
+inclusions and date assumptions in the basis cell or a short note below the table.
+Use a source-supported estimate when an exact quote is unavailable, explaining its
+basis. If no price can be supported, write 'Estimate unavailable — check provider',
+include a verified search/booking link if available, and list this as an unpriced
+essential cost; never supply an invented number merely to fill every row.
+
+Total only one recommended combination, not all alternatives added together. Show
 **Estimated total** and **Remaining budget** or **Over budget** below the table.
+If prices are ranges, show a total range and assess budget fit using the upper end.
 Identify per-person vs per-trip amounts, nights, fees, assumptions, and unpriced
 items. If any costs are unknown, call the sum a known-cost subtotal, not a complete
 trip total. Never invent prices or treat missing prices as zero to complete a table.

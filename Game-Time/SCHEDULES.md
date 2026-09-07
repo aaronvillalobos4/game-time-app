@@ -59,6 +59,14 @@ At/over budget, or when essential costs are unknown, suggestions stay limited to
 no-admission-cost or conditional general ideas. Revisions reassess the extras;
 users can select or remove them in chat.
 
+The budget table pairs ticket, hotel, and applicable flight estimates with the
+matching booking links. Quantities, nights, fare basis, fees, and assumptions are
+shown alongside the costs. Unverified prices remain explicitly unavailable;
+verified provider search links are labeled as search links, not confirmed offers.
+The Game-Day Plan uses hourly rows anchored to verified event times. When the
+start is TBD, it uses relative hourly slots instead of inventing a kickoff time.
+These formatting rules apply to initial itineraries and revisions.
+
 ## Configuration and checks
 
 The server process needs the credentials for `CREWAI_MODEL` (default `gpt-4o`)

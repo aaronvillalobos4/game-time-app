@@ -303,11 +303,18 @@ class TravelCrew:
                 f"Find two bookable ticket options for {self.inputs['game']} "
                 f"on {self.inputs['date']}. Include current listed price, seat "
                 "details, and the provided source link. Do not invent availability "
-                "or alter any URL."
+                "or alter any URL. Verify the actual event venue, host city, start "
+                "time and timezone from an official team/league/venue source for "
+                "the requested date; mark an unannounced start TBD. For each ticket "
+                "option provide a numeric listed price or evidence-backed estimated "
+                "range, currency, per-ticket basis, fee inclusions/unknowns and the "
+                "exact matching booking link. If no quote is found, provide a "
+                "verified provider search link and explicitly mark the price unavailable."
             ),
             expected_output=(
                 "Two ticket options with seat details, listed prices, source "
-                "names, and booking links."
+                "names, and booking links; verified event venue, start time/timezone "
+                "or TBD, and price/fee assumptions."
             ),
             agent=ticket_agent,
             async_execution=True,
@@ -318,6 +325,12 @@ class TravelCrew:
                 f"Find two well-rated hotels near the venue for "
                 f"{self.inputs['game']} around {self.inputs['date']}. Include "
                 "nightly rate, rating, location information, and source link. "
+                "For each hotel, provide an evidence-backed rate or estimated range, "
+                "currency, dates checked, room/night basis, taxes/fees if known, and "
+                "the exact matching booking link. State stay-date assumptions; a "
+                "generic advertised starting rate is not a quote for event night. "
+                "If a rate cannot be verified, say estimate unavailable and supply "
+                "a verified hotel/provider search link when available. "
                 "Also research a short set of optional experiences in the actual host "
                 "city: one casual dinner/local-food idea and up to two nearby local "
                 "attractions, including a no-admission-cost option if verifiable. "
@@ -348,7 +361,14 @@ class TravelCrew:
                     f"Find practical flight options from {self.inputs['origin']} "
                     f"for attending {self.inputs['game']} on "
                     f"{self.inputs['date']}. Include times, total listed price, "
-                    "airline, and source link. Clearly state date assumptions."
+                    "airline, and source link. Clearly state date assumptions. "
+                    "Give an evidence-backed fare or estimated range with currency, "
+                    "traveler count, round-trip/one-way basis, taxes/baggage inclusions "
+                    "or unknowns, and the matching booking link. Distinguish generic "
+                    "route starting fares from quotes for the proposed travel dates. "
+                    "Include departure/arrival dates and local timezones for verified "
+                    "flights. If no fare or schedule can be verified, mark it unavailable "
+                    "and provide a verified provider search link rather than inventing it."
                 ),
                 expected_output=(
                     "Flight options with airlines, schedules, listed prices, "
