@@ -5,6 +5,7 @@ import Script from "next/script";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import TripMarkdown from "../components/TripMarkdown";
 import VoiceInput from "../components/VoiceInput";
+import SportsTicker from "../components/SportsTicker";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://game-time-f7qt.onrender.com";
 const INITIAL_MESSAGE = "Welcome to Game Time! Ask me about game dates, the best matchups this month, venues, or travel ideas. We'll find your game and build a custom itinerary based on your budget.";
@@ -279,6 +280,8 @@ export default function Home() {
           <h1 className="text-3xl font-extrabold tracking-tight text-red-600">Game Time</h1>
           <p className="text-xs text-gray-400 sm:text-sm">AI that finds tickets, flights, and hotels for your next sports trip.</p>
         </header>
+
+        <SportsTicker />
 
         <section ref={conversationRef} onScroll={() => {
           const panel = conversationRef.current;

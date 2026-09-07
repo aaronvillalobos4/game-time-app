@@ -2,6 +2,17 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+An ESPN-sourced scoreboard appears above the chat with NFL, college football,
+NBA, MLB, and NHL filters. The browser requests `/api/scoreboard?league=nfl`;
+the Next.js route fetches ESPN's public scoreboard endpoint with an eight-second
+timeout and 60-second caching. No API key is required. The feed may change or
+be unavailable; empty and failed responses are handled without blocking chat.
+Cards link to ESPN, show live games first, and can be scrolled horizontally.
+Automatic updates run every minute while the tab is visible and can be paused.
+The displayed games follow ESPN's default current slate (which can span a week
+for football), limited to 30 cards. This is a custom scoreboard using ESPN data,
+not an official ESPN embed. Feed availability is an external dependency.
+
 The main chat supports English voice dictation through the browser's Web Speech
 API when available on HTTPS (or localhost). Click **Speak your message**, allow
 microphone access, dictate, then review/edit the text and press **Send**. Speech
