@@ -28,6 +28,9 @@ class ItineraryRequest(BaseModel):
     date: str = Field(min_length=1, max_length=100)
     departure_city: str = Field(min_length=1, max_length=200)
     budget: float = Field(gt=0, le=1_000_000)
+    current_itinerary: str | None = Field(default=None, max_length=20_000)
+    revision_request: str | None = Field(default=None, max_length=1_000)
+    revision_context: str | None = Field(default=None, max_length=40_000)
 
 
 app = FastAPI(title="Game Time API", version="1.1.0")
@@ -108,6 +111,9 @@ async def generate_itinerary_stream(request: ItineraryRequest) -> StreamingRespo
         "date": request.date.strip(),
         "origin": request.departure_city.strip(),
         "budget": request.budget,
+        "current_itinerary": request.current_itinerary,
+        "revision_request": request.revision_request,
+        "revision_context": request.revision_context,
     }
 
     async def event_generator() -> AsyncIterator[str]:

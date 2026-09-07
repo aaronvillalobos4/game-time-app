@@ -38,6 +38,19 @@ requires the model to recognize an explicit build request/confirmation and the
 server to verify all required trip fields. Asking another question with a
 complete trip does not automatically regenerate the itinerary.
 
+Itineraries stream into the main chat as full Markdown messages. The latest
+completed version supplies context for follow-ups and has copy, email, share,
+and print/PDF controls; print shows only that version. Earlier versions stay in
+the conversation. A failed or incomplete stream preserves the last completed
+version. This history remains in page memory and is cleared on refresh/reset.
+
+Explicit edits such as "lower my budget to $800" or "replace the hotel with a
+cheaper option" trigger a revision when trip details are complete. The stream
+request includes `current_itinerary`, `revision_request`, and `revision_context`.
+The editor researches changed options, preserves unaffected choices, recalculates
+the budget, and returns a full updated itinerary. Informational questions continue
+to receive conversational answers without rebuilding the plan.
+
 ## Configuration and checks
 
 The server process needs the credentials for `CREWAI_MODEL` (default `gpt-4o`)
