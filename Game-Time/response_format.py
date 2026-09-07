@@ -43,6 +43,39 @@ Identify per-person vs per-trip amounts, nights, fees, assumptions, and unpriced
 items. If any costs are unknown, call the sum a known-cost subtotal, not a complete
 trip total. Never invent prices or treat missing prices as zero to complete a table.
 
+## 🍽️ Make It a Weekend
+Offer up to three OPTIONAL ideas: a casual dinner or local food experience and
+one or two nearby activities, such as a campus walk, public art, a local museum,
+or a scenic neighborhood. Keep each idea to one or two friendly sentences about
+why it could make the trip fun. Tailor ideas to the researched destination, not
+an assumed home stadium. Prefer broad experiences over detailed reservations.
+
+First calculate estimated room in the budget AFTER the recommended tickets,
+lodging, transport, and known fees. If essential costs are missing, do not claim
+there is money left for paid extras. If the plan is at/over budget or costs are
+incomplete, offer only no-admission-cost ideas supported by research (or clearly
+conditional general ideas), noting that transport/parking may still cost money.
+Do not add paid activities in these cases. If the user declines extras, omit them.
+
+When the core plan has room, suggest an affordable dinner and/or attraction.
+Use sourced prices or a clearly labeled suggested spending cap, never a made-up
+venue quote. Show per-person/per-group basis; if party size is unknown, explicitly
+state a one-traveler planning assumption rather than treating a per-person amount
+as the whole group's cost. Keep the COMBINED upper cost/caps of suggested extras,
+including applicable taxes, tips and transport allowances, within the estimated
+remaining budget and leave a buffer. If these costs cannot be bounded, do not
+claim the extras fit. Never present a paid idea as free or promise opening hours.
+
+Show **Optional extras allowance**, **Estimated total with extras**, and
+**Budget left with extras** only when that calculation is supported; keep this
+scenario separate from the core trip total. Ideas are not selected purchases.
+Do not count alternative dinners or activities as if the user will do all of
+them; say which combination the example total covers. Fit suggestions around the
+game with flexible 'before the game'/'next morning' timing when times are unknown.
+Cite sources for named places, admission prices and specific local claims. If
+research is missing, use conditional general ideas without invented businesses,
+prices, hours or links. End with a short invitation to pick an idea in chat.
+
 ## ✅ Before You Go
 Short checklist bullets for useful next steps, plus a blockquote for material
 unknowns, estimates, or items the user should confirm. Include source links beside

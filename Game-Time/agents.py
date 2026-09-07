@@ -183,7 +183,8 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "when the latest user message requests building it or confirms that offer, "
             "OR when current_itinerary exists and the user asks to change it (including "
             "'lower my budget to $800', 'change the hotel', or 'can you replace the hotel "
-            "with a cheaper option?'). For these edits set build_itinerary=true and "
+            "with a cheaper option?', 'add the dinner idea', or 'skip the attractions'). "
+            "For these edits set build_itinerary=true and "
             "update any chosen slots, even when hotel edits require no slot changes. "
             "Briefly acknowledge the requested revision; the itinerary crew will "
             "research changes and return the full revised itinerary. If the requested "
@@ -245,11 +246,11 @@ class TravelCrew:
 
     def hotel_agent(self) -> Agent:
         return Agent(
-            role="Hotel and Lodging Specialist",
-            goal="Find well-rated lodging close to the game venue",
+            role="Hotel and Local Experience Specialist",
+            goal="Find well-rated lodging and affordable local experiences near the game venue",
             backstory=(
                 "A lodging specialist who balances location, guest ratings, "
-                "price, and convenient booking options."
+                "price, convenient booking options, and memorable local food and activities."
             ),
             tools=[google_search],
             llm=crew_llm,
@@ -316,11 +317,22 @@ class TravelCrew:
             description=(
                 f"Find two well-rated hotels near the venue for "
                 f"{self.inputs['game']} around {self.inputs['date']}. Include "
-                "nightly rate, rating, location information, and source link."
+                "nightly rate, rating, location information, and source link. "
+                "Also research a short set of optional experiences in the actual host "
+                "city: one casual dinner/local-food idea and up to two nearby local "
+                "attractions, including a no-admission-cost option if verifiable. "
+                "Keep ideas broad and convenient for a game trip. Use official "
+                "tourism, attraction or restaurant sources for named places and "
+                "admission claims. Provide source links, any verified prices and "
+                "their per-person/group basis, and flag unknown prices, parking, "
+                "or hours. Do not invent businesses, prices, or free admission. "
+                "These are candidates only; the coordinator decides what fits "
+                "after budgeting essential trip costs."
             ),
             expected_output=(
                 "Two hotel options with nightly rates, ratings, locations, "
-                "source names, and booking links."
+                "source names, and booking links, followed by a few sourced optional "
+                "dinner/activity ideas with known costs or clearly stated unknowns."
             ),
             agent=hotel_agent,
             async_execution=True,
@@ -357,7 +369,9 @@ class TravelCrew:
                 "and booking links. Copy every booking URL exactly as supplied: "
                 "never shorten, decode, rewrite, or remove its query parameters. "
                 "Never claim that a booking was made. If the options exceed the "
-                "budget, say so and identify the shortfall. "
+                "budget, say so and identify the shortfall. Include optional local "
+                "dinner/activity ideas from the supplied research only as the "
+                "remaining budget allows, following the extras rules below. "
                 + ITINERARY_FORMAT
             ),
             expected_output=(
@@ -398,7 +412,13 @@ class TravelCrew:
                 "retrieved links. Never fabricate a replacement, price, or availability. "
                 "If no suitable replacement can be verified, retain the old option and "
                 "clearly explain the unresolved request. Recalculate totals, distinguish "
-                "unpriced items, and state any remaining budget shortfall. Start with "
+                "unpriced items, and state any remaining budget shortfall. Reassess "
+                "optional dinner and local activities against the revised remaining "
+                "budget: scale back paid extras if the budget shrinks, and research "
+                "suitable ideas if the user requests them or the new budget allows. "
+                "If the user chooses a previously optional extra, include its cost "
+                "in the selected plan once, not again as an optional allowance. "
+                "Respect requests to remove or skip extras. Start with "
                 "a short 'What changed' summary, then return the FULL revised itinerary "
                 "using the format below, not just a patch or advice. Never claim a "
                 "reservation was changed or booked. "

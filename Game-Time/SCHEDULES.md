@@ -51,6 +51,14 @@ The editor researches changed options, preserves unaffected choices, recalculate
 the budget, and returns a full updated itinerary. Informational questions continue
 to receive conversational answers without rebuilding the plan.
 
+The optional "Make It a Weekend" section offers a casual dinner/local-food idea
+and nearby activities when estimated core trip costs leave room. Paid extras use
+sourced costs or explicitly labeled spending caps, with a combined allowance
+within the remaining budget. Their optional total is separate from the core plan.
+At/over budget, or when essential costs are unknown, suggestions stay limited to
+no-admission-cost or conditional general ideas. Revisions reassess the extras;
+users can select or remove them in chat.
+
 ## Configuration and checks
 
 The server process needs the credentials for `CREWAI_MODEL` (default `gpt-4o`)
