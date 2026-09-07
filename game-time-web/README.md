@@ -2,6 +2,16 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+The main chat supports English voice dictation through the browser's Web Speech
+API when available on HTTPS (or localhost). Click **Speak your message**, allow
+microphone access, dictate, then review/edit the text and press **Send**. Speech
+is appended to the existing draft; messages are limited to 1,000 characters.
+Recognition stops after an utterance or when the user presses Stop. Unsupported
+browsers retain typed input. No audio-upload endpoint or recording storage is
+added to the app; the browser's speech service may process audio remotely.
+Only the reviewed text is sent to the chat API after Send. Real microphone and
+permission behavior should be checked on target devices before deployment.
+
 First, run the development server:
 
 ```bash

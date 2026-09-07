@@ -4,6 +4,7 @@ import Image from "next/image";
 import Script from "next/script";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import TripMarkdown from "../components/TripMarkdown";
+import VoiceInput from "../components/VoiceInput";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://game-time-f7qt.onrender.com";
 const INITIAL_MESSAGE = "Welcome to Game Time! Ask me about game dates, the best matchups this month, venues, or travel ideas. We'll find your game and plan a trip around it.";
@@ -64,6 +65,7 @@ function conversationHistory(messages: Message[]) {
 export default function Home() {
   const [messages, setMessages] = useState<Message[]>([{ sender: "bot", text: INITIAL_MESSAGE }]);
   const [input, setInput] = useState("");
+  const [voiceActive, setVoiceActive] = useState(false);
   const [slots, setSlots] = useState<TripSlots>({});
   const [activeItinerary, setActiveItinerary] = useState<{ id: string; text: string; trip: TripSlots } | null>(null);
   const itinerary = activeItinerary?.text ?? null;
@@ -183,7 +185,7 @@ export default function Home() {
 
   const handleSend = async (rawText: string) => {
     const text = rawText.trim();
-    if (!text || loading) return;
+    if (!text || loading || voiceActive) return;
 
     followLatestRef.current = true;
     setMessages((current) => [...current, { sender: "user", text }]);
@@ -318,12 +320,13 @@ export default function Home() {
         <section className="space-y-3 print:hidden">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-slate-400">Try asking:</span>
-            {(itinerary ? ["Lower my total budget to $800", "Replace the hotel with a cheaper option", "Find a hotel closer to the stadium"] : PROMPT_CHIPS).map((chip) => <button key={chip} type="button" onClick={() => void handleSend(chip)} disabled={loading} className="rounded-full border border-slate-700 bg-[#1e293b] px-3 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-50">{chip}</button>)}
+            {(itinerary ? ["Lower my total budget to $800", "Replace the hotel with a cheaper option", "Find a hotel closer to the stadium"] : PROMPT_CHIPS).map((chip) => <button key={chip} type="button" onClick={() => void handleSend(chip)} disabled={loading || voiceActive} className="rounded-full border border-slate-700 bg-[#1e293b] px-3 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-50">{chip}</button>)}
           </div>
+          <VoiceInput value={input} onChange={setInput} active={voiceActive} onActiveChange={setVoiceActive} disabled={loading} />
           <form onSubmit={handleSubmit} className="flex gap-2">
             <label htmlFor="trip-message" className="sr-only">Message Game Time</label>
-            <input id="trip-message" value={input} onChange={(event) => setInput(event.target.value)} placeholder={itinerary ? "Ask a question or request an itinerary change..." : "Type your matchup, date, city, or budget..."} disabled={loading} autoComplete="off" className="flex-1 rounded-xl border border-slate-700 bg-[#1e293b] px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500" />
-            <button type="submit" disabled={loading || !input.trim()} className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">Send</button>
+            <input id="trip-message" value={input} onChange={(event) => setInput(event.target.value)} placeholder={itinerary ? "Ask a question or request an itinerary change..." : "Type your matchup, date, city, or budget..."} disabled={loading || voiceActive} maxLength={1000} autoComplete="off" className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-[#1e293b] px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500" />
+            <button type="submit" disabled={loading || voiceActive || !input.trim()} className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">Send</button>
           </form>
         </section>
 
