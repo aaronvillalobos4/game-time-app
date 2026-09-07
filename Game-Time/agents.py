@@ -11,6 +11,7 @@ from crewai.tools import tool
 
 from affiliate_links import affiliate_url_for
 from conversation import AssistantTurn, ChatParseRequest
+from response_format import CHAT_FORMAT, ITINERARY_FORMAT
 
 
 RESET_PATTERN = re.compile(
@@ -185,6 +186,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "detail. Never claim reservations or bookings were made.\n\n"
             "Return the structured AssistantTurn with a natural Markdown reply, "
             "slot_updates, and build_itinerary. Do not show internal field names in reply.\n"
+            + CHAT_FORMAT + "\nConversation data:\n"
             + json.dumps(request.model_dump(), ensure_ascii=False)
         ),
         expected_output="A validated AssistantTurn with a helpful reply and only confirmed trip updates.",
@@ -345,7 +347,8 @@ class TravelCrew:
                 "and booking links. Copy every booking URL exactly as supplied: "
                 "never shorten, decode, rewrite, or remove its query parameters. "
                 "Never claim that a booking was made. If the options exceed the "
-                "budget, say so and identify the shortfall."
+                "budget, say so and identify the shortfall. "
+                + ITINERARY_FORMAT
             ),
             expected_output=(
                 "A polished Markdown itinerary with a schedule, budget breakdown, "

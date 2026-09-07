@@ -3,8 +3,7 @@
 import Image from "next/image";
 import Script from "next/script";
 import { FormEvent, useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import TripMarkdown from "../components/TripMarkdown";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://game-time-f7qt.onrender.com";
 const INITIAL_MESSAGE = "Welcome to Game Time! Ask me about game dates, the best matchups this month, venues, or travel ideas. We'll find your game and plan a trip around it.";
@@ -231,12 +230,6 @@ export default function Home() {
     }
   };
 
-  const markdownComponents = {
-    a: (props: React.ComponentPropsWithoutRef<"a">) => (
-      <a {...props} target="_blank" rel="sponsored noopener noreferrer" className="font-semibold text-red-400 underline hover:text-red-300" />
-    ),
-  };
-
   return (
     <main className="flex min-h-screen flex-col items-center bg-[#0f172a] p-6 text-white print:bg-white print:p-0 print:text-black">
       <Script strategy="afterInteractive" src="https://www.googletagmanager.com/gtag/js?id=G-CP8PCZ4F12" />
@@ -256,8 +249,8 @@ export default function Home() {
 
         <section aria-label="Conversation" aria-live="polite" className="max-h-100 min-h-62.5 space-y-4 overflow-y-auto rounded-2xl border border-slate-800 bg-[#1e293b] p-4 shadow-xl sm:p-6 print:hidden">
           {messages.map((message, index) => (
-            <div key={`${message.sender}-${index}`} className={`max-w-[85%] rounded-xl p-3 text-sm sm:p-4 ${message.sender === "user" ? "ml-auto rounded-br-none bg-red-600 text-white" : "rounded-bl-none bg-[#334155] text-slate-200"}`}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{message.text}</ReactMarkdown>
+            <div key={`${message.sender}-${index}`} className={`min-w-0 max-w-[95%] sm:max-w-[90%] rounded-xl p-3 text-sm sm:p-4 ${message.sender === "user" ? "ml-auto rounded-br-none bg-red-600 text-white" : "rounded-bl-none bg-[#334155] text-slate-200"}`}>
+              <TripMarkdown>{message.text}</TripMarkdown>
             </div>
           ))}
           {loading && (
@@ -299,10 +292,8 @@ export default function Home() {
             <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-100 print:border-gray-400 print:bg-white print:text-black">
               Game Time may earn a commission when you book through links in this itinerary, at no additional cost to you.
             </p>
-            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-6 text-slate-100 print:border-none print:bg-white print:p-0 print:text-black">
-              <div className="prose prose-invert max-w-none prose-table:w-full prose-table:border-collapse prose-th:border prose-th:border-slate-700 prose-th:bg-slate-800 prose-th:p-3 prose-td:border prose-td:border-slate-700 prose-td:p-3 print:prose-not-invert">
-                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{itinerary}</ReactMarkdown>
-              </div>
+            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900 p-3 sm:p-6 text-slate-100 print:border-none print:bg-white print:p-0 print:text-black">
+              <TripMarkdown>{itinerary}</TripMarkdown>
             </div>
           </article>
         )}

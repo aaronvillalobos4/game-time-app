@@ -25,3 +25,64 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.trip-markdown {
+  min-width: 0;
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.trip-markdown > * + * { margin-top: 1rem; }
+.trip-markdown > :first-child { margin-top: 0; }
+.trip-markdown > :last-child { margin-bottom: 0; }
+.trip-markdown :is(h1, h2, h3, h4) {
+  color: #f8fafc;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-top: 1.75rem;
+  margin-bottom: 0.75rem;
+}
+.trip-markdown h1 { font-size: 1.5rem; }
+.trip-markdown h2 { font-size: 1.2rem; }
+.trip-markdown :is(h3, h4) { font-size: 1rem; }
+.trip-markdown h2 { border-bottom: 1px solid #64748b; padding-bottom: 0.5rem; }
+.trip-markdown strong { color: #f8fafc; font-weight: 700; }
+.trip-markdown :is(ul, ol) { padding-left: 1.5rem; }
+.trip-markdown ul { list-style-type: disc; }
+.trip-markdown ol { list-style-type: decimal; }
+.trip-markdown li + li { margin-top: 0.375rem; }
+.trip-markdown li > :is(ul, ol, p) { margin-top: 0.375rem; }
+.trip-markdown li::marker { color: #cbd5e1; }
+.trip-markdown a { color: #fda4af; text-decoration: underline; text-underline-offset: 3px; }
+.trip-markdown a:hover { color: #fecdd3; }
+.trip-markdown :is(a, .trip-table-scroll):focus-visible { outline: 2px solid #fb7185; outline-offset: 3px; }
+.trip-markdown blockquote {
+  border-left: 3px solid #fbbf24;
+  background: #fbbf2410;
+  padding: 0.75rem 1rem;
+  color: #fde68a;
+}
+.trip-markdown hr { border-color: #64748b; margin-block: 1.5rem; }
+.trip-markdown code { background: #0f172a; border-radius: 0.25rem; padding: 0.15rem 0.3rem; }
+.trip-markdown pre { overflow-x: auto; padding: 1rem; background: #0f172a; border-radius: 0.5rem; }
+.trip-markdown .contains-task-list { list-style: none; padding-left: 0; }
+.trip-markdown .task-list-item input { margin-right: 0.5rem; }
+.trip-table-scroll { max-width: 100%; overflow-x: auto; border: 1px solid #64748b; border-radius: 0.625rem; }
+.trip-markdown table { width: 100%; min-width: 26rem; border-collapse: collapse; font-size: 0.875rem; }
+.trip-markdown :is(th, td) { padding: 0.75rem; text-align: left; vertical-align: top; }
+.trip-markdown th { background: #1e293b; color: #f8fafc; font-weight: 700; }
+.trip-markdown td { border-top: 1px solid #64748b; }
+.trip-markdown tbody tr:nth-child(even) { background: #94a3b810; }
+
+@media print {
+  .trip-markdown, .trip-markdown :is(h1, h2, h3, h4, strong, a, blockquote, th) { color: #111827; }
+  .trip-markdown :is(th, td, h2, blockquote, hr), .trip-table-scroll { border-color: #9ca3af; }
+  .trip-markdown :is(th, tr, blockquote, code, pre) { background: transparent !important; }
+  .trip-markdown li::marker { color: #111827; }
+  .trip-markdown :is(h1, h2, h3, h4) { break-after: avoid; }
+  .trip-markdown tr { break-inside: avoid; }
+  .trip-markdown table { min-width: 0; table-layout: fixed; font-size: 0.75rem; }
+  .trip-markdown :is(th, td) { padding: 0.5rem; }
+  .trip-table-scroll { overflow: visible; }
+}
