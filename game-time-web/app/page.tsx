@@ -7,7 +7,7 @@ import TripMarkdown from "../components/TripMarkdown";
 import VoiceInput from "../components/VoiceInput";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://game-time-f7qt.onrender.com";
-const INITIAL_MESSAGE = "Welcome to Game Time! Ask me about game dates, the best matchups this month, venues, or travel ideas. We'll find your game and plan a trip around it.";
+const INITIAL_MESSAGE = "Welcome to Game Time! Ask me about game dates, the best matchups this month, venues, or travel ideas. We'll find your game and plan a trip based on your budget.";
 const LOADING_STEPS = [
   "🎟️ Scouting ticket options and stadium seating...",
   "✈️ Comparing flight schedules and airline rates...",
