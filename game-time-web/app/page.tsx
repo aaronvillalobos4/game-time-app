@@ -318,11 +318,11 @@ export default function Home() {
         </section>
 
         <section className="space-y-3 print:hidden">
+          <VoiceInput value={input} onChange={setInput} active={voiceActive} onActiveChange={setVoiceActive} disabled={loading} />
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-slate-400">Try asking:</span>
             {(itinerary ? ["Lower my total budget to $800", "Replace the hotel with a cheaper option", "Find a hotel closer to the stadium"] : PROMPT_CHIPS).map((chip) => <button key={chip} type="button" onClick={() => void handleSend(chip)} disabled={loading || voiceActive} className="rounded-full border border-slate-700 bg-[#1e293b] px-3 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-50">{chip}</button>)}
           </div>
-          <VoiceInput value={input} onChange={setInput} active={voiceActive} onActiveChange={setVoiceActive} disabled={loading} />
           <form onSubmit={handleSubmit} className="flex gap-2">
             <label htmlFor="trip-message" className="sr-only">Message Game Time</label>
             <input id="trip-message" value={input} onChange={(event) => setInput(event.target.value)} placeholder={itinerary ? "Ask a question or request an itinerary change..." : "Type your matchup, date, city, or budget..."} disabled={loading || voiceActive} maxLength={1000} autoComplete="off" className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-[#1e293b] px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500" />
