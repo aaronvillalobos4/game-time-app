@@ -41,6 +41,7 @@ class AssistantTurn(BaseModel):
     reply: str = Field(min_length=1, max_length=8_000)
     slot_updates: TripSlots = Field(default_factory=TripSlots)
     build_itinerary: bool = False
+    suggests_hotels: bool = False
 
 
 def merge_slots(current: TripSlots, updates: TripSlots) -> TripSlots:

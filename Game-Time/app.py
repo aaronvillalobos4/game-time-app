@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from agents import TravelCrew, answer_trip_message, evaluate_user_intent
 from conversation import ChatParseRequest, TripSlots, merge_slots, next_question
+from affiliate_links import with_hotel_booking_link
 
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ async def parse_intent(request: ChatParseRequest) -> dict[str, object]:
 
     missing_question = next_question(slots)
     complete = turn.build_itinerary and missing_question is None
-    reply = turn.reply
+    reply = with_hotel_booking_link(turn.reply, turn.suggests_hotels)
     if turn.build_itinerary and missing_question:
         reply = f"{reply}\n\nBefore I can build your itinerary: {missing_question}"
     elif missing_question is None and not complete and slots != request.current_slots:

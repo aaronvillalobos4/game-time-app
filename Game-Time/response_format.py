@@ -43,7 +43,8 @@ and must respect the budget rules below.
 Numbered options with bold labels, short seat/price details, and exact booking links.
 
 ## 🏨 Where to Stay
-Bulleted hotel options with location, nightly rate, and exact booking links.
+Bulleted hotel options with location, nightly rate, 'View hotel details' source
+links and the 'Book through Expedia' affiliate action from HOTEL BOOKING LINKS.
 
 ## ✈️ Getting There
 For flights, use short bullets with researched routes, prices, and exact links.
@@ -59,6 +60,9 @@ Repeat the option's supplied booking URL exactly, retaining all affiliate/query
 parameters. If only a provider search page is available, label it 'Search tickets',
 'Search hotels', or 'Search flights', not a confirmed bookable offer. Never invent
 a booking URL. If none is available, write 'Booking link unavailable'.
+Exception for the Hotel row: always use the supplied 'Book through Expedia'
+affiliate action and label property-specific URLs as 'View hotel details'. Clearly
+state that the affiliate entry requires searching for the chosen hotel on Expedia.
 
 Show ticket count and per-ticket estimate; hotel rooms, nights, nightly rate and
 stay subtotal; and flight traveler count, one-way/round-trip basis and fare subtotal.

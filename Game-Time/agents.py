@@ -9,7 +9,8 @@ import requests
 from crewai import Agent, Crew, LLM, Process, Task
 from crewai.tools import tool
 
-from affiliate_links import affiliate_url_for
+from affiliate_links import (affiliate_url_for, expedia_booking_entry_for,
+                             with_expedia_booking_link, HOTEL_BOOKING_POLICY)
 from conversation import AssistantTurn, ChatParseRequest
 from response_format import CHAT_FORMAT, ITINERARY_FORMAT
 
@@ -108,6 +109,14 @@ def google_search(query: str) -> str:
         link = affiliate_url_for(original_link) if original_link else "No link provided"
         snippet = item.get("snippet", "No description provided")
         options.append(f"Title: {title}\nLink: {link}\nInfo: {snippet}")
+        expedia_entry = expedia_booking_entry_for(original_link)
+        if expedia_entry:
+            options[-1] += (
+                f"\nSeparate Expedia affiliate entry: {expedia_entry}\n"
+                "Keep the source link for this result. The affiliate entry is not "
+                "a verified deep link to this property, fare, or search. Label it "
+                "'Explore Expedia (affiliate)' and never invent URL parameters."
+            )
 
     return "\n---\n".join(options) if options else "No search results found."
 
@@ -194,6 +203,8 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "detail. Never claim reservations or bookings were made.\n\n"
             "Return the structured AssistantTurn with a natural Markdown reply, "
             "slot_updates, and build_itinerary. Do not show internal field names in reply.\n"
+            "Set suggests_hotels=true whenever your reply recommends lodging properties.\n"
+            + HOTEL_BOOKING_POLICY
             + CHAT_FORMAT + "\nConversation data:\n"
             + json.dumps(request.model_dump(), ensure_ascii=False)
         ),
@@ -393,6 +404,7 @@ class TravelCrew:
                 "dinner/activity ideas from the supplied research only as the "
                 "remaining budget allows, following the extras rules below. "
                 + ITINERARY_FORMAT
+                + HOTEL_BOOKING_POLICY
             ),
             expected_output=(
                 "A polished Markdown itinerary with a schedule, budget breakdown, "
@@ -409,7 +421,7 @@ class TravelCrew:
             verbose=False,
         )
         result = await crew.kickoff_async()
-        return str(result.raw) if hasattr(result, "raw") else str(result)
+        return with_expedia_booking_link(str(result.raw) if hasattr(result, "raw") else str(result))
 
     async def _revise(self) -> str:
         """Revise the existing plan without discarding unrelated user choices."""
@@ -442,11 +454,11 @@ class TravelCrew:
                 "a short 'What changed' summary, then return the FULL revised itinerary "
                 "using the format below, not just a patch or advice. Never claim a "
                 "reservation was changed or booked. "
-                + ITINERARY_FORMAT + "\nTrip and revision data:\n"
+                + ITINERARY_FORMAT + HOTEL_BOOKING_POLICY + "\nTrip and revision data:\n"
                 + json.dumps(self.inputs, ensure_ascii=False)
             ),
             expected_output="Complete revised Markdown itinerary with changed details, sources, and updated totals.",
             agent=editor,
         )
         result = await Crew(agents=[editor], tasks=[task], verbose=False).kickoff_async()
-        return str(result.raw) if hasattr(result, "raw") else str(result)
+        return with_expedia_booking_link(str(result.raw) if hasattr(result, "raw") else str(result))

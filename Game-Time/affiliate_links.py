@@ -9,6 +9,19 @@ DEFAULT_TICKETMASTER_AFFILIATE_URL = (
     "https://ticketmaster.evyy.net/c/7499899/264167/4272"
 )
 TICKETMASTER_HOST = "ticketmaster.com"
+EXPEDIA_AFFILIATE_URL = "https://expedia.com/affiliate/Zc2O7FL"
+HOTEL_BOOKING_POLICY = (
+    "HOTEL BOOKING LINKS: For every hotel recommendation, use exactly "
+    f"[Book through Expedia]({EXPEDIA_AFFILIATE_URL}) as the hotel booking action. "
+    "This is the only hotel booking CTA, including the Hotel row of the budget table. "
+    "Keep property-specific and other hotel-provider URLs only as 'View hotel details' "
+    "or research sources, never as Book/Reserve buttons. Do not replace ticket or "
+    "flight booking links. Explain that the Expedia affiliate entry is not a "
+    "property-specific link: users must search for the suggested hotel and confirm "
+    "dates, availability, and price. Never imply the hotel is available through Expedia "
+    "without evidence. Disclose that Game Time may earn a commission on qualifying "
+    "bookings. This rule takes precedence over generic matching-booking-link instructions."
+)
 SUB_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 
 
@@ -79,3 +92,46 @@ def affiliate_url_for(destination_url: str) -> str:
     if is_ticketmaster_url(destination_url):
         return ticketmaster_affiliate_url(destination_url)
     return destination_url
+
+
+def expedia_booking_entry_for(destination_url: str) -> str | None:
+    """Offer the supplied Expedia affiliate entry without inventing deep-link parameters."""
+    try:
+        parsed = urlsplit(destination_url)
+    except ValueError:
+        return None
+    if (parsed.scheme == "https" and parsed.hostname
+            and _is_host_or_subdomain(parsed.hostname, "expedia.com")
+            and not parsed.username and not parsed.password):
+        return EXPEDIA_AFFILIATE_URL
+    return None
+
+
+def with_expedia_booking_link(itinerary: str) -> str:
+    """Make the affiliate entry available on initial and revised itineraries."""
+    booking_link = f"[Book through Expedia]({EXPEDIA_AFFILIATE_URL})"
+    # Enforce the canonical destination for explicit hotel-booking actions,
+    # including a model accidentally supplying a different Expedia affiliate URL.
+    itinerary = re.sub(
+        r"\[(?:Book through Expedia|Book (?:this |the )?hotel|Reserve (?:this |the )?hotel)\]"
+        r"\([^\s()]+\)",
+        lambda _match: booking_link,
+        itinerary,
+        flags=re.IGNORECASE,
+    )
+    if booking_link in itinerary:
+        return itinerary
+    return itinerary.rstrip() + (
+        "\n\n### Hotel booking\n\n"
+        + booking_link
+        + " — search for your chosen hotel after opening this affiliate entry link. "
+        "It is not a direct link to a specific property. Confirm availability, dates, and price "
+        "on Expedia. Game Time may earn a commission from qualifying bookings."
+    )
+
+
+def with_hotel_booking_link(reply: str, suggests_hotels: bool = False) -> str:
+    """Keep the booking CTA present in hotel chat answers as well as itineraries."""
+    if suggests_hotels or re.search(r"\b(?:hotels?|lodging|accommodations?)\b", reply, re.I):
+        return with_expedia_booking_link(reply)
+    return reply
