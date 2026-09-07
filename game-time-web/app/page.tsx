@@ -7,7 +7,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "https://game-time-f7qt.onrender.com";
-const INITIAL_MESSAGE = "Welcome to Game Time! What game or sports matchup do you want to go see?";
+const INITIAL_MESSAGE = "Welcome to Game Time! Ask me about game dates, the best matchups this month, venues, or travel ideas. We'll find your game and plan a trip around it.";
 const LOADING_STEPS = [
   "🎟️ Scouting ticket options and stadium seating...",
   "✈️ Comparing flight schedules and airline rates...",
@@ -16,6 +16,9 @@ const LOADING_STEPS = [
   "📝 Formatting your custom trip itinerary...",
 ];
 const PROMPT_CHIPS = [
+  "What are the top college football games to attend this month?",
+  "Which airport should I fly into for a game at Kyle Field?",
+  "Show me the Texas A&M Aggies football schedule",
   "🏈 Cowboys vs Eagles in Dallas",
   "⚾ Astros vs Rangers in Houston",
   "🏀 Lakers in LA with $1500 budget",
@@ -45,6 +48,18 @@ type StreamEvent = {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong. Please try again.";
+}
+
+function conversationHistory(messages: Message[]) {
+  let remaining = 40_000;
+  const recent = [];
+  for (const message of messages.slice(-20).reverse()) {
+    const content = message.text.slice(0, Math.min(8_000, remaining));
+    if (!content) break;
+    recent.push({ role: message.sender === "user" ? "user" : "assistant", content });
+    remaining -= content.length;
+  }
+  return recent.reverse();
 }
 
 export default function Home() {
@@ -145,14 +160,19 @@ export default function Home() {
     setInput("");
     setLoading(true);
     setLoadingStep(0);
-    setStatus("");
+    setStatus("Checking your request and looking up event details...");
     setError(null);
 
     try {
       const response = await fetch(`${API_URL}/api/parse-intent`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, current_slots: slots }),
+        body: JSON.stringify({
+          message: text,
+          current_slots: slots,
+          history: conversationHistory(messages),
+          current_itinerary: itinerary?.slice(0, 20_000) ?? null,
+        }),
       });
       if (!response.ok) throw new Error(`Conversation request failed (${response.status}).`);
 
@@ -164,13 +184,14 @@ export default function Home() {
         return;
       }
 
-      // Keep every field already collected. Only an explicit reset clears slots.
+      // The server merges confirmed choices and clears stale dependent details.
       const updatedSlots = parsed.slots ?? slots;
-      setSlots(updatedSlots);
-      if (!parsed.is_complete) {
-        addBotMessage(parsed.follow_up_question || "What other trip detail can you provide?");
-        return;
+      if (itinerary && JSON.stringify(updatedSlots) !== JSON.stringify(slots)) {
+        setItinerary(null);
       }
+      setSlots(updatedSlots);
+      if (parsed.follow_up_question) addBotMessage(parsed.follow_up_question);
+      if (!parsed.is_complete) return;
       await generateItinerary(updatedSlots);
     } catch (caught: unknown) {
       console.error("Game Time error:", caught);
