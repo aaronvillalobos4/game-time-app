@@ -277,7 +277,7 @@ export default function Home() {
         <header className="flex flex-col items-center gap-2 text-center print:hidden">
           <Image src="/logo.png" alt="Game Time logo" width={200} height={200} priority className="h-auto w-40 object-contain sm:w-50" />
           <h1 className="text-3xl font-extrabold tracking-tight text-red-600">Game Time</h1>
-          <p className="text-xs text-gray-400 sm:text-sm">Plan tickets, travel, and lodging for your next sports trip.</p>
+          <p className="text-xs text-gray-400 sm:text-sm">AI that finds tickets, flights, and hotels for your next sports trip.</p>
         </header>
 
         <section ref={conversationRef} onScroll={() => {
