@@ -86,7 +86,7 @@ async def parse_intent(request: ChatParseRequest) -> dict[str, object]:
 
     missing_question = next_question(slots)
     complete = turn.build_itinerary and missing_question is None
-    reply = with_hotel_booking_link(turn.reply, turn.suggests_hotels)
+    reply = await asyncio.to_thread(with_hotel_booking_link, turn.reply, turn.suggests_hotels)
     if turn.build_itinerary and missing_question:
         reply = f"{reply}\n\nBefore I can build your itinerary: {missing_question}"
     elif missing_question is None and not complete and slots != request.current_slots:

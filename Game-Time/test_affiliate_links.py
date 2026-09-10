@@ -12,6 +12,11 @@ from affiliate_links import with_hotel_booking_link
 
 
 class AffiliateLinkTests(unittest.TestCase):
+    def setUp(self):
+        config = patch.dict(os.environ, {"TRAVELPAYOUTS_API_TOKEN": ""})
+        config.start()
+        self.addCleanup(config.stop)
+
     def test_chat_hotel_recommendation_has_canonical_booking_action(self):
         reply = "Try the Example Inn. [View hotel details](https://example.com/property)"
         result = with_hotel_booking_link(reply, suggests_hotels=True)
