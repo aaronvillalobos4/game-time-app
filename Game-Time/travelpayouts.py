@@ -32,10 +32,13 @@ def is_hotel_url(url):
         path = parsed.path.lower()
         if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443):
             return False
-        domains = ("booking.com", "hotels.com", "expedia.com", "agoda.com", "trip.com", "hostelworld.com")
+        domains = ("booking.com", "hotels.com", "expedia.com", "agoda.com", "trip.com", "hostelworld.com", "klook.com", "kkday.com")
         domain = next((d for d in domains if host == d or host.endswith("." + d)), None)
         if not domain or "/affiliate" in path:
             return False
+        if domain in {"klook.com", "kkday.com"}:
+            # Both also sell activities: only recognize accommodation paths here.
+            return bool(re.search(r"(?:^|[/_-])(?:hotels?|accommodations?|staycations?)(?:$|[/_-])", path))
         if domain in {"expedia.com", "trip.com"}:
             return "hotel" in path
         return not any(word in path for word in ("flight", "car-rental", "attractions"))

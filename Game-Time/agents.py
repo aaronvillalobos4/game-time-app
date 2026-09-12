@@ -357,6 +357,7 @@ class TravelCrew:
                 "or hours. Do not invent businesses, prices, or free admission. "
                 "These are candidates only; the coordinator decides what fits "
                 "after budgeting essential trip costs."
+                + hotel_booking_policy()
             ),
             expected_output=(
                 "Two hotel options with nightly rates, ratings, locations, "

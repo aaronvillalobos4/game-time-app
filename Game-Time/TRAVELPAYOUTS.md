@@ -1,5 +1,17 @@
 # Hotel affiliate links
 
+Klook and KKday are preferred accommodation research providers. The chat, hotel
+research task, coordinator and revision prompts share this policy: search both
+first, verify overnight stays and trip fit, then fall back to other providers if
+necessary. Existing user hotel choices take precedence. Accommodation URL paths
+on klook.com and kkday.com are eligible for conversion; ambiguous product URLs
+without hotel/accommodation/staycation markers remain unchanged. Conversion is
+not proof of overnight availability or commission eligibility under brand terms.
+Live checks on September 11, 2026 created links for Klook's hotel landing page
+and KKday's www Japan hotel promotion page. The tested m.kkday.com hotel URL
+returned "not brand link"; it remains a source link. Agents are instructed to
+research verified www.kkday.com alternatives rather than inventing URL rewrites.
+
 Configure `TRAVELPAYOUTS_API_TOKEN`, `TRAVELPAYOUTS_MARKER` (partner ID), and
 `TRAVELPAYOUTS_PROJECT_ID` (`trs`) in the backend environment. Run locally with
 `uvicorn app:app --env-file .env`; set the same variables on the hosted backend.

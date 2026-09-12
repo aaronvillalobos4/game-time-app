@@ -69,3 +69,23 @@ class TravelpayoutsTests(unittest.TestCase):
         with patch.dict(os.environ, {"TRAVELPAYOUTS_API_TOKEN": ""}), patch("travelpayouts.requests.post") as post:
             self.assertEqual(tp.convert_hotel_links(["https://booking.com/hotel/a.html"]), {})
             post.assert_not_called()
+
+    def test_preferred_accommodation_links_convert_in_chat(self):
+        urls = ["https://www.klook.com/hotels/detail/123-example/",
+                "https://m.kkday.com/en-au/hotel/product/299700"]
+        rows = [{"url": url, "code": "success", "partner_url": f"https://example.tp.st/{i}"}
+                for i, url in enumerate(urls)]
+        with patch("travelpayouts.requests.post", return_value=self.response(rows)) as post:
+            result = with_hotel_booking_link(" ".join(f"[Hotel]({url})" for url in urls), True)
+        self.assertEqual([item["url"] for item in post.call_args.kwargs["json"]["links"]], urls)
+        for row in rows:
+            self.assertIn(row["partner_url"], result)
+        self.assertIn("may earn a commission", result)
+
+    def test_preferred_providers_do_not_match_activities_or_lookalikes(self):
+        for url in ("https://www.klook.com/activity/123-stadium-tour/",
+                    "https://www.kkday.com/en/product/123-city-tour",
+                    "https://klook.com.evil.test/hotels/",
+                    "https://user@kkday.com/en/hotel/product/123",
+                    "http://klook.com/hotels/"):
+            self.assertFalse(tp.is_hotel_url(url), url)
