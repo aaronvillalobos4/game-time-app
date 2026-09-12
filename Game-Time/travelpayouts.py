@@ -136,7 +136,8 @@ def _convert_links(urls, eligible, sub_id):
 def monetize_hotel_markdown(text):
     # Convert Markdown destinations, including reference-style definitions and bare URLs.
     pattern = re.compile(r'https://[^\s<>\[\]()"`]+')
-    links = convert_hotel_links(pattern.findall(text))
+    hotel_links = convert_hotel_links(pattern.findall(text))
+    links = dict(hotel_links)
     links.update(convert_flight_links(pattern.findall(text)))
     links.update(convert_extra_links(pattern.findall(text)))
     result = pattern.sub(lambda match: links.get(match.group(0), match.group(0)), text)
@@ -153,8 +154,22 @@ def monetize_hotel_markdown(text):
             return bool(domain) or bool(re.search(r"hotel|accommodation|lodging", parsed.path, re.I))
         except ValueError:
             return True
-    result = re.sub(r"\[([^\]]+)\]\((https?://[^\s()]+)\)",
-                    lambda m: f"[Hotel resource (not affiliate)]({m[2]})" if blocked(m[2]) and m[2] not in links.values() else m[0], result)
+    provider_names = {"booking.com": "Booking.com", "hotels.com": "Hotels.com",
+                      "agoda.com": "Agoda", "hostelworld.com": "Hostelworld",
+                      "expedia.com": "Expedia", "trip.com": "Trip.com",
+                      "klook.com": "Klook", "kkday.com": "KKday",
+                      "klook.tp.st": "Klook", "kkday.tp.st": "KKday"}
+    originals = {partner: original for original, partner in hotel_links.items()}
+    def hotel_label(match):
+        url = match[2]
+        original = originals.get(url, url)
+        host = (urlsplit(original).hostname or "").lower()
+        name = next((name for domain, name in provider_names.items()
+                     if host == domain or host.endswith("." + domain)), None)
+        if url in originals or blocked(original) or host in {"klook.tp.st", "kkday.tp.st"}:
+            return f"[{name or host.removeprefix('www.')}]({url})"
+        return match[0]
+    result = re.sub(r"\[([^\]]+)\]\((https?://[^\s()]+)\)", hotel_label, result)
     result = re.sub(r"\[([^\]]+)\]\((https?://[^\s()]+)\)",
                     lambda m: f"[Resource (not affiliate)]({m[2]})" if is_extra_url(m[2]) and m[2] not in links.values() else m[0], result)
     if links and "may earn a commission" not in result.lower():

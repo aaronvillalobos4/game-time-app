@@ -74,14 +74,14 @@ class TravelpayoutsTests(unittest.TestCase):
                 {"url": b, "code": "failed", "partner_url": ""}]
         with patch("travelpayouts.requests.post", return_value=self.response(rows)), self.assertLogs("travelpayouts", level="WARNING"):
             result = tp.monetize_hotel_markdown(f"[A]({a}) [B]({b})")
-        self.assertIn("[A](https://klook.tp.st/abc)", result)
-        self.assertIn(f"[Hotel resource (not affiliate)]({b})", result)
+        self.assertIn("[Klook](https://klook.tp.st/abc)", result)
+        self.assertIn(f"[KKday]({b})", result)
         self.assertIn("may earn a commission", result)
 
     def test_timeout_does_not_break_answer_or_inject_old_expedia_link(self):
         reply = "Hotel [Book](https://klook.com/hotel/a.html)"
         with patch("travelpayouts.requests.post", side_effect=requests.Timeout), self.assertLogs("travelpayouts", level="WARNING"):
-            self.assertEqual(with_hotel_booking_link(reply, True), reply.replace("[Book]", "[Hotel resource (not affiliate)]"))
+            self.assertEqual(with_hotel_booking_link(reply, True), reply.replace("[Book]", "[Klook]"))
         self.assertNotIn("https://expedia.com/affiliate/legacy", hotel_booking_policy())
 
     def test_wrong_or_unsafe_response_not_used(self):
@@ -113,12 +113,14 @@ class TravelpayoutsTests(unittest.TestCase):
             result = tp.monetize_hotel_markdown(" ".join(f"[Book hotel]({url})" for url in urls))
             post.assert_not_called()
         self.assertNotIn("[Book hotel]", result)
-        self.assertEqual(result.count("[Hotel resource (not affiliate)]"), len(urls))
+        self.assertNotIn("Hotel resource", result)
+        for name in ("Booking.com", "Hotels.com", "Agoda", "Trip.com", "Hostelworld", "Expedia"):
+            self.assertIn(f"[{name}]", result)
 
     def test_missing_credentials_never_present_raw_hotel_booking_action(self):
         with patch.dict(os.environ, {"TRAVELPAYOUTS_API_TOKEN": ""}):
             result = with_hotel_booking_link("[Book hotel](https://klook.com/hotels/example)")
-        self.assertEqual(result, "[Hotel resource (not affiliate)](https://klook.com/hotels/example)")
+        self.assertEqual(result, "[Klook](https://klook.com/hotels/example)")
 
     def test_preferred_accommodation_links_convert_in_chat(self):
         urls = ["https://www.klook.com/hotels/detail/123-example/",

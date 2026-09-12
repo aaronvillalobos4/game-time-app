@@ -4,8 +4,8 @@ Klook and KKday remain the only hotel providers enabled for Travelpayouts
 conversion. Agents search both first and broaden sparse event/date queries to the
 venue city before falling back. If suitable accommodations or affiliate conversion
 are unavailable, verified hotel resource links from other providers are allowed.
-Inline raw hotel URLs are labeled "Hotel resource (not affiliate)"; bare and
-reference URLs are preserved. Agents must explain the fallback and must not claim
+Inline hotel URLs are labeled with the provider name (for example, Trip.com or Klook); bare and
+reference URLs are preserved. Agents must explain untracked fallback status outside the link label and must not claim
 these resources earn commission. The decision to use fallback recommendations is
 prompt-based. The user-approved Expedia affiliate entry is available as a fallback or on request.
 It is a separate creator link, not a Travelpayouts hotel deep link; users must
