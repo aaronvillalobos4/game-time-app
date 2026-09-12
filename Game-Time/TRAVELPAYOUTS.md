@@ -52,3 +52,35 @@ larger deployments should add a shared cache/rate limiter. A successful conversi
 validates link creation, not price/availability or a future commission payment.
 
 Reference: https://support.travelpayouts.com/hc/en-us/articles/25289759198226-API-for-Travelpayouts-partner-links
+
+
+## Flight programs
+
+Flight research prioritizes Aviasales and Kiwi.com, with KKday only for verified
+flight products. AirHelp and Compensair are relevant to disruption questions,
+not ticket searches; no affiliate integration for those claim services is enabled.
+Aviasales .com home/search/routes URLs and explicit KKday flight paths are
+eligible for conversion. Opaque KKday product IDs remain untracked unless their
+URL matches the flight detector. Kiwi.com is excluded by the partner-links API;
+its links stay untracked resources until a supported affiliate integration exists.
+Aviasales homepage conversion succeeded in the live account check. This does not
+verify a specific route, fare, booking attribution or KKday flight conversion.
+
+
+## Preferred trip extras
+
+The chat, hotel/extras research, coordinator and revision prompts prioritize the
+user's additional providers only for relevant needs, without ranking by list order:
+Airalo/Drimsim/Saily (mobile data), GetTransfer/intui.travel (transfers),
+GetRentacar/EconomyBookings/QEEQ/AutoEurope (cars), BikesBooking (two-wheel rentals),
+Go City (attraction passes), WeGoTrip (audio tours), Radical Storage (luggage),
+and EKTA (insurance). Simple schedule answers exclude this policy. Extras remain
+optional and budget-aware. Search results and final chat/itinerary responses now convert these providers
+through the partner-links API using sub_id game-time-extras. Failed conversions
+retain original resource URLs labeled as not affiliate. Domain matching requires
+HTTPS and rejects credentials and lookalike hosts.
+
+Live homepage conversion succeeded for 13 providers. AutoEurope returned
+"trs is not subscribed for brand" for the configured project. Connect that project
+to AutoEurope before expecting tracked links. Homepage tests establish API access,
+not availability or eligibility of every product or future commission attribution.

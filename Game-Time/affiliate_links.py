@@ -11,6 +11,49 @@ DEFAULT_TICKETMASTER_AFFILIATE_URL = (
 )
 TICKETMASTER_HOST = "ticketmaster.com"
 EXPEDIA_AFFILIATE_URL = "https://expedia.com/affiliate/Zc2O7FL"
+
+
+def trip_extras_policy():
+    return (
+        "TRIP EXTRAS PROVIDER PRIORITY: When a trip actually needs these services, "
+        "research relevant providers from this list first, with no fixed ranking: "
+        "mobile data/SIM/eSIM: Airalo, Drimsim, Saily; airport/private transfers: "
+        "GetTransfer.com, intui.travel; rental cars: GetRentacar.com, EconomyBookings.com, "
+        "QEEQ, AutoEurope; bikes/scooters/motorcycles: BikesBooking.com; attraction "
+        "passes: Go City; self-guided audio tours: WeGoTrip; luggage storage: Radical "
+        "Storage; travel insurance: EKTA. These are not hotel-accommodation providers. "
+        "Choose by destination coverage, dates, total cost and user needs, not list "
+        "order. Search only relevant categories, never all providers on every turn. "
+        "Do not add extras to simple game-schedule answers or force unnecessary "
+        "services into an itinerary. Keep optional extras within remaining budget; "
+        "do not count alternatives as simultaneous expenses. Check eSIM device and "
+        "destination compatibility, rental/transfer logistics, attraction pass value, "
+        "and luggage-storage hours when applicable. For insurance, link verified "
+        "provider information, never assert coverage or eligibility without evidence. "
+        "Prefer successful Travelpayouts trip-service links supplied by research. "
+        "Only successful API conversions are tracked affiliate links; if conversion "
+        "fails, retain verified originals labeled 'Resource (not affiliate)'. Never "
+        "invent affiliate URLs or claim unconverted resources earn commission. "
+        "A generated link does not guarantee product eligibility or commission. "
+        "If no suitable preferred option exists, explain "
+        "briefly and provide other verified resources. Respect user preferences. "
+    )
+
+
+def flight_booking_policy():
+    return (
+        "FLIGHT LINKS: Research Aviasales and Kiwi.com first for route/date matches, "
+        "and KKday only where an actual flight product is verified. No fixed ranking: "
+        "choose by total price, routing, baggage and user preferences. AirHelp and "
+        "Compensair are disruption/compensation services, not flight-ticket search "
+        "providers; mention them only when relevant to a user's disruption question. "
+        "Prefer successful supplied Travelpayouts flight links. Kiwi.com is excluded "
+        "from the current link-conversion API: keep its URLs as 'Flight resource (not "
+        "affiliate)', never invent tracking. Treat any unconverted flight URL similarly. "
+        "If preferred providers lack a suitable option, use verified airline or other "
+        "flight resource links. Distinguish generic search pages from exact fares; "
+        "never claim current availability, price or commission without evidence. "
+    )
 def hotel_booking_policy():
     return (
         "HOTEL BOOKING LINKS: Prioritize successful Travelpayouts API links for Klook or "

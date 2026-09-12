@@ -8,6 +8,34 @@ from affiliate_links import with_hotel_booking_link, hotel_booking_policy
 
 
 class TravelpayoutsTests(unittest.TestCase):
+    def test_extras_convert_and_failed_provider_remains_untracked(self):
+        a, b = "https://airalo.com/united-states-esim", "https://autoeurope.com/"
+        rows = [{"url": a, "code": "success", "partner_url": "https://airalo.tp.st/example"},
+                {"url": b, "code": "failed", "partner_url": ""}]
+        with patch("travelpayouts.requests.post", return_value=self.response(rows)) as post, self.assertLogs("travelpayouts", level="WARNING"):
+            result = with_hotel_booking_link(f"[Data]({a}) [Car]({b})")
+        self.assertIn("[Data](https://airalo.tp.st/example)", result)
+        self.assertIn(f"[Resource (not affiliate)]({b})", result)
+        self.assertIn("may earn a commission", result)
+        self.assertTrue(all(x["sub_id"] == "game-time-extras" for x in post.call_args.kwargs["json"]["links"]))
+
+    def test_extras_domains_and_unsafe_urls(self):
+        for domain in tp.EXTRA_DOMAINS:
+            self.assertTrue(tp.is_extra_url(f"https://www.{domain}/"))
+            self.assertFalse(tp.is_extra_url(f"https://{domain}.evil.test/"))
+            self.assertFalse(tp.is_extra_url(f"https://user@{domain}/"))
+        self.assertFalse(tp.is_extra_url("http://airalo.com/"))
+        self.assertFalse(tp.is_extra_url("https://airalo.tp.st/example"))
+
+    def test_flight_conversion_excludes_kiwi_and_claim_services(self):
+        url = "https://www.aviasales.com/"
+        row = {"url": url, "code": "success", "partner_url": "https://aviasales.tp.st/example"}
+        with patch("travelpayouts.requests.post", return_value=self.response([row])) as post:
+            result = tp.convert_flight_links([url, "https://www.kiwi.com/en/",
+                "https://airhelp.com/", "https://compensair.com/", "https://aviasales.com.evil.test/"])
+        self.assertEqual(result, {url: row["partner_url"]})
+        self.assertEqual(post.call_args.kwargs["json"]["links"], [{"url": url, "sub_id": "game-time-flights"}])
+
     def test_trip_resource_links_preserved_in_all_supported_forms(self):
         url = "https://us.trip.com/hotels/arlington-att-stadium/hotels-c26813m9562581/"
         text = f"[Details]({url})\n{url}\n<{url}>\n[ref]: {url}\nhttps://www.ticketmaster.com/event/123"

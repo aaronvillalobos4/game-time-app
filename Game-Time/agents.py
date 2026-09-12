@@ -12,8 +12,8 @@ from crewai import Agent, Crew, LLM, Process, Task
 from crewai.tools import tool
 
 from affiliate_links import (affiliate_url_for,
-                             with_hotel_booking_link, hotel_booking_policy)
-from travelpayouts import convert_hotel_links
+                             with_hotel_booking_link, hotel_booking_policy, flight_booking_policy, trip_extras_policy)
+from travelpayouts import convert_hotel_links, convert_flight_links, convert_extra_links
 from conversation import AssistantTurn, ChatParseRequest
 from response_format import CHAT_FORMAT, ITINERARY_FORMAT
 
@@ -124,6 +124,8 @@ def _google_search(query: str) -> str:
 
     items = results.get("organic", [])
     tracked_hotels = convert_hotel_links([item.get("link", "") for item in items])
+    tracked_flights = convert_flight_links([item.get("link", "") for item in items])
+    tracked_extras = convert_extra_links([item.get("link", "") for item in items])
     options = []
     for item in items:
         title = item.get("title", "Untitled result")
@@ -133,6 +135,10 @@ def _google_search(query: str) -> str:
         options.append(f"Title: {title}\nLink: {link}\nInfo: {snippet}")
         if original_link in tracked_hotels:
             options[-1] += f"\nHotel booking link (Travelpayouts): {tracked_hotels[original_link]}"
+        if original_link in tracked_flights:
+            options[-1] += f"\nFlight link (Travelpayouts): {tracked_flights[original_link]}"
+        if original_link in tracked_extras:
+            options[-1] += f"\nTrip service link (Travelpayouts): {tracked_extras[original_link]}"
 
     return "\n---\n".join(options) if options else "No search results found."
 
@@ -222,7 +228,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "Return the structured AssistantTurn with a natural Markdown reply, "
             "slot_updates, and build_itinerary. Do not show internal field names in reply.\n"
             "Set suggests_hotels=true whenever your reply recommends lodging properties.\n"
-            + hotel_booking_policy()
+            + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy()
             + CHAT_FORMAT + "\nConversation data:\n"
             + json.dumps(request.model_dump(), ensure_ascii=False)
         ),
@@ -399,7 +405,7 @@ class TravelCrew:
                 "or hours. Do not invent businesses, prices, or free admission. "
                 "These are candidates only; the coordinator decides what fits "
                 "after budgeting essential trip costs."
-                + hotel_booking_policy()
+                + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy()
             ),
             expected_output=(
                 "Two hotel options with nightly rates, ratings, locations, "
@@ -420,6 +426,7 @@ class TravelCrew:
                     f"Find practical flight options from {self.inputs['origin']} "
                     f"for attending {self.inputs['game']} on "
                     f"{self.inputs['date']}. Include times, total listed price, "
+                    + flight_booking_policy() +
                     "airline, and source link. Clearly state date assumptions. "
                     "Give an evidence-backed fare or estimated range with currency, "
                     "traveler count, round-trip/one-way basis, taxes/baggage inclusions "
@@ -452,7 +459,7 @@ class TravelCrew:
                 "dinner/activity ideas from the supplied research only as the "
                 "remaining budget allows, following the extras rules below. "
                 + ITINERARY_FORMAT
-                + hotel_booking_policy()
+                + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy()
             ),
             expected_output=(
                 "A polished Markdown itinerary with a schedule, budget breakdown, "
@@ -502,7 +509,7 @@ class TravelCrew:
                 "a short 'What changed' summary, then return the FULL revised itinerary "
                 "using the format below, not just a patch or advice. Never claim a "
                 "reservation was changed or booked. "
-                + ITINERARY_FORMAT + hotel_booking_policy() + "\nTrip and revision data:\n"
+                + ITINERARY_FORMAT + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy() + "\nTrip and revision data:\n"
                 + json.dumps(self.inputs, ensure_ascii=False)
             ),
             expected_output="Complete revised Markdown itinerary with changed details, sources, and updated totals.",
