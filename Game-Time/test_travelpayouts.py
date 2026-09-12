@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 import requests
 import travelpayouts as tp
-from affiliate_links import with_hotel_booking_link, hotel_booking_policy, EXPEDIA_AFFILIATE_URL
+from affiliate_links import with_hotel_booking_link, hotel_booking_policy
 
 
 class TravelpayoutsTests(unittest.TestCase):
@@ -47,7 +47,7 @@ class TravelpayoutsTests(unittest.TestCase):
         reply = "Hotel [Book](https://booking.com/hotel/a.html)"
         with patch("travelpayouts.requests.post", side_effect=requests.Timeout), self.assertLogs("travelpayouts", level="WARNING"):
             self.assertEqual(with_hotel_booking_link(reply, True), reply)
-        self.assertNotIn(EXPEDIA_AFFILIATE_URL, hotel_booking_policy())
+        self.assertNotIn("https://expedia.com/affiliate/legacy", hotel_booking_policy())
 
     def test_wrong_or_unsafe_response_not_used(self):
         url = "https://booking.com/hotel/a.html"
@@ -59,7 +59,7 @@ class TravelpayoutsTests(unittest.TestCase):
 
     def test_non_hotel_and_existing_affiliate_links_skipped(self):
         urls = ["https://booking.com.evil.test/hotel", "https://user@booking.com/hotel", "http://booking.com/hotel",
-                "https://ticketmaster.com/event/123", "https://booking.tp.st/abc", EXPEDIA_AFFILIATE_URL,
+                "https://ticketmaster.com/event/123", "https://booking.tp.st/abc",
                 "https://www.expedia.co.uk/Hotel-Search", "https://www.expedia.com/Flights-Search"]
         with patch("travelpayouts.requests.post") as post:
             self.assertEqual(tp.convert_hotel_links(urls), {})

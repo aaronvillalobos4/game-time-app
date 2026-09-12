@@ -32,7 +32,7 @@ def is_hotel_url(url):
         path = parsed.path.lower()
         if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443):
             return False
-        domains = ("booking.com", "hotels.com", "expedia.com", "agoda.com", "trip.com", "hostelworld.com", "klook.com", "kkday.com")
+        domains = ("booking.com", "hotels.com", "agoda.com", "trip.com", "hostelworld.com", "klook.com", "kkday.com")
         domain = next((d for d in domains if host == d or host.endswith("." + d)), None)
         if not domain or "/affiliate" in path:
             return False
@@ -102,3 +102,19 @@ def monetize_hotel_markdown(text):
     if links and "may earn a commission" not in result.lower():
         result += "\n\nGame Time may earn a commission from qualifying bookings through these links."
     return result
+
+
+def remove_expedia_affiliate_links(text):
+    """Remove known Expedia tracking destinations, including echoed chat history."""
+    def blocked(url):
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").lower()
+        if host in {"expedia.tp.st", "expedia.stay22.com"}:
+            return True
+        return (host == "expedia.com" or host.endswith(".expedia.com")) and (
+            "/affiliate" in parsed.path.lower() or bool(re.search(
+                r"(?:^|&)(?:camref|affcid|afflid|affdtl|mdpcid)=", parsed.query, re.I)))
+    text = re.sub(r"\[([^\]]+)\]\((https?://[^\s()]+)\)",
+                  lambda m: m[1] + " (booking link removed)" if blocked(m[2]) else m[0], text)
+    return re.sub(r'https?://[^\s<>\[\]()"`]+',
+                  lambda m: "" if blocked(m[0]) else m[0], text)

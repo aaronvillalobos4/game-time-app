@@ -25,19 +25,18 @@ from that program. No test bookings are created by link conversion.
 
 Search results retain source links and gain a separate Travelpayouts booking URL
 on successful conversion. The backend also converts hotel URLs in final chat and
-itinerary Markdown, including revisions. When configured, Travelpayouts replaces
-the fixed Expedia CTA policy. Ticketmaster retains its existing tracking handler.
+itinerary Markdown, including revisions. There is no Expedia affiliate fallback, even without Travelpayouts credentials. Ticketmaster retains its existing tracking handler.
 
 The converter sends up to 10 links per request, deduplicates originals, limits
 processing to 50 unique hotel links per response, and caches successes for one
 hour and failures for one minute in each server process (bounded cache). Eight-second
 timeouts and per-link failure handling keep source links usable during outages or
 missing brand access. An unchanged source URL is not claimed to earn commission.
-Previously generated fixed Expedia links are not automatically converted into
-hotel deep links; regenerate/revise using full hotel-provider source URLs.
+Recognized Expedia affiliate URLs are removed from new replies and revisions.
+Previously displayed messages are not retroactively changed. Expedia is excluded
+from Travelpayouts conversion; ordinary untracked Expedia research links may remain.
 
-Hotel URL detection currently covers booking.com, hotels.com, expedia.com hotel
-paths, agoda.com, trip.com hotel paths, and hostelworld.com. This allowlist does
+Hotel URL detection currently covers booking.com, hotels.com, agoda.com, trip.com hotel paths, and hostelworld.com. This allowlist does
 not imply account eligibility. Expedia UK and Ticketmaster are excluded from
 Travelpayouts conversion. Add other provider domains after confirming API support.
 

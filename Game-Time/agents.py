@@ -9,9 +9,9 @@ import requests
 from crewai import Agent, Crew, LLM, Process, Task
 from crewai.tools import tool
 
-from affiliate_links import (affiliate_url_for, expedia_booking_entry_for,
-                             with_expedia_booking_link, hotel_booking_policy)
-from travelpayouts import convert_hotel_links, configuration
+from affiliate_links import (affiliate_url_for,
+                             with_hotel_booking_link, hotel_booking_policy)
+from travelpayouts import convert_hotel_links
 from conversation import AssistantTurn, ChatParseRequest
 from response_format import CHAT_FORMAT, ITINERARY_FORMAT
 
@@ -114,14 +114,6 @@ def google_search(query: str) -> str:
         options.append(f"Title: {title}\nLink: {link}\nInfo: {snippet}")
         if original_link in tracked_hotels:
             options[-1] += f"\nHotel booking link (Travelpayouts): {tracked_hotels[original_link]}"
-        expedia_entry = None if configuration() else expedia_booking_entry_for(original_link)
-        if expedia_entry:
-            options[-1] += (
-                f"\nSeparate Expedia affiliate entry: {expedia_entry}\n"
-                "Keep the source link for this result. The affiliate entry is not "
-                "a verified deep link to this property, fare, or search. Label it "
-                "'Explore Expedia (affiliate)' and never invent URL parameters."
-            )
 
     return "\n---\n".join(options) if options else "No search results found."
 
@@ -427,7 +419,7 @@ class TravelCrew:
             verbose=False,
         )
         result = await crew.kickoff_async()
-        return with_expedia_booking_link(str(result.raw) if hasattr(result, "raw") else str(result))
+        return with_hotel_booking_link(str(result.raw) if hasattr(result, "raw") else str(result))
 
     async def _revise(self) -> str:
         """Revise the existing plan without discarding unrelated user choices."""
@@ -467,4 +459,4 @@ class TravelCrew:
             agent=editor,
         )
         result = await Crew(agents=[editor], tasks=[task], verbose=False).kickoff_async()
-        return with_expedia_booking_link(str(result.raw) if hasattr(result, "raw") else str(result))
+        return with_hotel_booking_link(str(result.raw) if hasattr(result, "raw") else str(result))
