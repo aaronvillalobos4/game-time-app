@@ -2,12 +2,12 @@
 
 Klook and KKday are the only hotel booking providers enabled for Travelpayouts
 conversion. Chat, hotel research, coordinator and revision prompts require successful
-API-generated links for hotel booking actions. Other providers may be cited only
-as research sources. When conversion fails or credentials are absent, recognized
-raw hotel Markdown links are relabeled Research source, with no booking fallback.
+API-generated links for hotel booking actions. Accommodation recommendations must be verified on Klook or KKday.
+Hotel research/resource links must not be displayed. When conversion fails or credentials are absent, recognized
+raw hotel URLs are suppressed, with no booking fallback.
 User hotel preferences are preserved but do not override the booking-provider restriction.
 Accommodation URL paths on klook.com and kkday.com are eligible; ambiguous product
-URLs without hotel/accommodation/staycation markers remain research sources.
+URLs without hotel/accommodation/staycation markers are not displayed as hotel resource links.
 Conversion is not proof of availability or commission eligibility.
 Live checks on September 11, 2026 created links for Klook's hotel landing page
 and KKday's www Japan hotel promotion page. The tested m.kkday.com hotel URL
@@ -36,7 +36,7 @@ timeouts and per-link failure handling keep source links usable during outages o
 missing brand access. An unchanged source URL is not claimed to earn commission.
 Recognized Expedia affiliate URLs are removed from new replies and revisions.
 Previously displayed messages are not retroactively changed. Expedia is excluded
-from Travelpayouts conversion; ordinary untracked Expedia research links may remain.
+from Travelpayouts conversion; recognized Expedia hotel research URLs are suppressed.
 
 The conversion allowlist is limited to klook.com and kkday.com accommodation
 paths, including subdomains. Other hotel providers are never sent to this API.

@@ -43,7 +43,7 @@ and must respect the budget rules below.
 Numbered options with bold labels, short seat/price details, and exact booking links.
 
 ## 🏨 Where to Stay
-Bulleted hotel options with location, nightly rate, source links and the booking action specified by HOTEL BOOKING LINKS.
+Bulleted hotel options with location, nightly rate, plain-text provider attribution and the booking action specified by HOTEL BOOKING LINKS.
 Use the matching property-specific Travelpayouts URL when supplied.
 
 ## ✈️ Getting There

@@ -95,22 +95,25 @@ def monetize_hotel_markdown(text):
     pattern = re.compile(r'https://[^\s<>\[\]()"`]+')
     links = convert_hotel_links(pattern.findall(text))
     result = pattern.sub(lambda match: links.get(match.group(0), match.group(0)), text)
-    # Raw hotel URLs are evidence only; booking actions require API conversion.
-    def research_label(match):
-        url = match[2]
-        host = (urlsplit(url).hostname or "").lower()
-        hotel_domains = ("booking.com", "hotels.com", "agoda.com", "hostelworld.com",
-                         "expedia.com", "trip.com", "klook.com", "kkday.com")
-        hotel_source = any(host == d or host.endswith("." + d) for d in hotel_domains)
-        # Leave non-hotel products on mixed travel sites alone.
-        if host.endswith(("klook.com", "kkday.com")):
-            hotel_source = is_hotel_url(url)
-        elif host.endswith(("expedia.com", "trip.com")):
-            hotel_source = "hotel" in urlsplit(url).path.lower()
-        if hotel_source and url not in links.values():
-            return f"[Research source]({url})"
-        return match[0]
-    result = re.sub(r"\[([^\]]+)\]\((https://[^\s()]+)\)", research_label, result)
+    # Suppress hotel research URLs in inline, bare, autolink and reference syntax.
+    def blocked(url):
+        try:
+            parsed = urlsplit(url)
+            host = (parsed.hostname or "").lower()
+            domains = ("booking.com", "hotels.com", "agoda.com", "hostelworld.com",
+                       "expedia.com", "trip.com", "klook.com", "kkday.com")
+            domain = next((d for d in domains if host == d or host.endswith("." + d)), None)
+            if domain in {"klook.com", "kkday.com", "expedia.com", "trip.com"}:
+                return bool(re.search(r"hotel|accommodation|staycation", parsed.path, re.I))
+            return bool(domain) or bool(re.search(r"hotel|accommodation|lodging", parsed.path, re.I))
+        except ValueError:
+            return True
+    result = re.sub(r"\[([^\]]+)\]\((https?://[^\s()]+)\)",
+                    lambda m: "Hotel booking link unavailable" if blocked(m[2]) else m[0], result)
+    result = re.sub(r"(?m)^\s*\[[^\]]+\]:\s*(https?://[^\s]+).*?$",
+                    lambda m: "" if blocked(m[1]) else m[0], result)
+    result = re.sub(r'https?://[^\s<>\[\]()"`]+',
+                    lambda m: "" if blocked(m[0]) else m[0], result)
     if links and "may earn a commission" not in result.lower():
         result += "\n\nGame Time may earn a commission from qualifying bookings through these links."
     return result
