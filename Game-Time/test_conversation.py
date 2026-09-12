@@ -6,12 +6,31 @@ from unittest.mock import AsyncMock, patch
 
 from pydantic import ValidationError
 
-from agents import answer_trip_message, evaluate_user_intent
+from agents import answer_trip_message, evaluate_user_intent, is_simple_schedule_question
 from app import parse_intent
 from conversation import AssistantTurn, ChatMessage, ChatParseRequest, TripSlots, merge_slots
 
 
 class ConversationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_schedule_path_preserves_state_and_uses_short_research(self):
+        result = SimpleNamespace(pydantic=AssistantTurn(reply="Verified game date",
+            build_itinerary=True, slot_updates=TripSlots(event="Unchosen game")))
+        with patch("agents.Crew") as crew:
+            crew.return_value.kickoff_async = AsyncMock(return_value=result)
+            turn = await answer_trip_message(ChatParseRequest(message="When is the Cowboys next home game?"))
+        self.assertFalse(turn.build_itinerary)
+        self.assertIsNone(turn.slot_updates.event)
+        agent = crew.call_args.kwargs["agents"][0]
+        self.assertEqual(agent.max_iter, 4)
+        self.assertIn("ONE focused search", crew.call_args.kwargs["tasks"][0].description)
+
+    def test_mixed_and_planning_questions_keep_full_path(self):
+        for message in ("When is the next game and find a hotel", "Top games this month?",
+                        "Build my schedule", "What time is my flight?"):
+            self.assertFalse(is_simple_schedule_question(message))
+        for message in ("Cowboys next home game?", "Show me the Aggies football schedule"):
+            self.assertTrue(is_simple_schedule_question(message))
+
     def setUp(self):
         self.complete = TripSlots(event="Chosen matchup", date="October 10, 2026",
                                   needs_flight=False, departure_city="Local", budget=600)
