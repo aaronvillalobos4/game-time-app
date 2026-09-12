@@ -1,14 +1,18 @@
 # Hotel affiliate links
 
-Klook and KKday are the only hotel booking providers enabled for Travelpayouts
-conversion. Chat, hotel research, coordinator and revision prompts require successful
-API-generated links for hotel booking actions. Accommodation recommendations must be verified on Klook or KKday.
-Hotel research/resource links must not be displayed. When conversion fails or credentials are absent, recognized
-raw hotel URLs are suppressed, with no booking fallback.
-User hotel preferences are preserved but do not override the booking-provider restriction.
-Accommodation URL paths on klook.com and kkday.com are eligible; ambiguous product
-URLs without hotel/accommodation/staycation markers are not displayed as hotel resource links.
-Conversion is not proof of availability or commission eligibility.
+Klook and KKday remain the only hotel providers enabled for Travelpayouts
+conversion. Agents search both first and broaden sparse event/date queries to the
+venue city before falling back. If suitable accommodations or affiliate conversion
+are unavailable, verified hotel resource links from other providers are allowed.
+Inline raw hotel URLs are labeled "Hotel resource (not affiliate)"; bare and
+reference URLs are preserved. Agents must explain the fallback and must not claim
+these resources earn commission. The decision to use fallback recommendations is
+prompt-based. The user-approved Expedia affiliate entry is available as a fallback or on request.
+It is a separate creator link, not a Travelpayouts hotel deep link; users must
+search for the selected hotel and verify dates and price.
+Accommodation URL paths on klook.com and kkday.com are eligible for conversion;
+ambiguous product URLs can remain untracked resources. Conversion is not proof of
+availability, pricing or commission eligibility.
 Live checks on September 11, 2026 created links for Klook's hotel landing page
 and KKday's www Japan hotel promotion page. The tested m.kkday.com hotel URL
 returned "not brand link"; it remains a source link. Agents are instructed to
@@ -27,16 +31,16 @@ from that program. No test bookings are created by link conversion.
 
 Search results retain source links and gain a separate Travelpayouts booking URL
 on successful conversion. The backend also converts hotel URLs in final chat and
-itinerary Markdown, including revisions. There is no Expedia affiliate fallback, even without Travelpayouts credentials. Ticketmaster retains its existing tracking handler.
+itinerary Markdown, including revisions. The approved Expedia entry also works without Travelpayouts credentials. Ticketmaster retains its existing tracking handler.
 
 The converter sends up to 10 links per request, deduplicates originals, limits
 processing to 50 unique hotel links per response, and caches successes for one
 hour and failures for one minute in each server process (bounded cache). Eight-second
 timeouts and per-link failure handling keep source links usable during outages or
 missing brand access. An unchanged source URL is not claimed to earn commission.
-Recognized Expedia affiliate URLs are removed from new replies and revisions.
+Recognized obsolete Expedia affiliate URLs are removed; the exact approved entry is preserved with a disclosure and explanation.
 Previously displayed messages are not retroactively changed. Expedia is excluded
-from Travelpayouts conversion; recognized Expedia hotel research URLs are suppressed.
+from Travelpayouts conversion; ordinary Expedia hotel resource URLs may remain untracked.
 
 The conversion allowlist is limited to klook.com and kkday.com accommodation
 paths, including subdomains. Other hotel providers are never sent to this API.

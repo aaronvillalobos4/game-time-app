@@ -95,7 +95,7 @@ def monetize_hotel_markdown(text):
     pattern = re.compile(r'https://[^\s<>\[\]()"`]+')
     links = convert_hotel_links(pattern.findall(text))
     result = pattern.sub(lambda match: links.get(match.group(0), match.group(0)), text)
-    # Suppress hotel research URLs in inline, bare, autolink and reference syntax.
+    # Preserve fallback resources, distinguishing them from affiliate booking actions.
     def blocked(url):
         try:
             parsed = urlsplit(url)
@@ -109,11 +109,7 @@ def monetize_hotel_markdown(text):
         except ValueError:
             return True
     result = re.sub(r"\[([^\]]+)\]\((https?://[^\s()]+)\)",
-                    lambda m: "Hotel booking link unavailable" if blocked(m[2]) else m[0], result)
-    result = re.sub(r"(?m)^\s*\[[^\]]+\]:\s*(https?://[^\s]+).*?$",
-                    lambda m: "" if blocked(m[1]) else m[0], result)
-    result = re.sub(r'https?://[^\s<>\[\]()"`]+',
-                    lambda m: "" if blocked(m[0]) else m[0], result)
+                    lambda m: f"[Hotel resource (not affiliate)]({m[2]})" if blocked(m[2]) and m[2] not in links.values() else m[0], result)
     if links and "may earn a commission" not in result.lower():
         result += "\n\nGame Time may earn a commission from qualifying bookings through these links."
     return result
@@ -122,6 +118,8 @@ def monetize_hotel_markdown(text):
 def remove_expedia_affiliate_links(text):
     """Remove known Expedia tracking destinations, including echoed chat history."""
     def blocked(url):
+        if url == "https://expedia.com/affiliate/Zc2O7FL":
+            return False
         parsed = urlsplit(url)
         host = (parsed.hostname or "").lower()
         if host in {"expedia.tp.st", "expedia.stay22.com"}:

@@ -8,6 +8,15 @@ from urllib.parse import parse_qs, urlsplit
 from affiliate_links import affiliate_url_for, ticketmaster_affiliate_url, with_hotel_booking_link
 
 class AffiliateLinkTests(unittest.TestCase):
+    def test_approved_expedia_entry_preserved_and_explained(self):
+        url = "https://expedia.com/affiliate/Zc2O7FL"
+        with patch.dict(os.environ, {"TRAVELPAYOUTS_API_TOKEN": ""}):
+            result = with_hotel_booking_link(f"[Explore Expedia (affiliate)]({url})")
+            self.assertIn(url, result)
+            self.assertIn("not a property-specific link", result)
+            self.assertIn("may earn a commission", result)
+            self.assertEqual(with_hotel_booking_link(result), result)
+
     def test_expedia_tracking_removed_from_replies(self):
         with patch.dict(os.environ, {"TRAVELPAYOUTS_API_TOKEN": ""}):
             for url in ("https://expedia.com/affiliate/legacy",

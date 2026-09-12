@@ -10,24 +10,33 @@ DEFAULT_TICKETMASTER_AFFILIATE_URL = (
     "https://ticketmaster.evyy.net/c/7499899/264167/4272"
 )
 TICKETMASTER_HOST = "ticketmaster.com"
+EXPEDIA_AFFILIATE_URL = "https://expedia.com/affiliate/Zc2O7FL"
 def hotel_booking_policy():
     return (
-        "HOTEL BOOKING LINKS: Only successful Travelpayouts API links for Klook or "
-        "KKday may be presented as hotel booking actions, including budget tables "
+        "HOTEL BOOKING LINKS: Prioritize successful Travelpayouts API links for Klook or "
+        "KKday as hotel booking actions, including budget tables "
         "and revised itineraries. Never invent tracking URLs or reuse other hotel "
         "affiliate links from history. Search site:klook.com and site:kkday.com "
         "separately for overnight accommodations near the event venue for the trip "
         "dates and budget. Prefer verified www.kkday.com pages over mobile pages; "
         "never invent URL rewrites. Verify overnight accommodation, not day-use, "
         "dining, spa or attraction vouchers. Preserve user hotel preferences, but "
-        "recommend accommodations only when verified on Klook or KKday. Never recommend "
-        "another accommodation provider or display hotel research/resource/source links. "
-        "Use provider names as plain-text attribution; show only API-generated Klook "
-        "or KKday hotel booking links. Omit original URLs from hotel sections, budget "
-        "rows, footnotes and sources lists. If a suitable stay or successful "
-        "conversion is unavailable, say no supported hotel booking link is available; "
-        "do not substitute a generic or unrelated hotel link. This also applies when "
-        "API credentials are missing. Never include Expedia affiliate links. "
+        "prioritize suitable verified Klook and KKday stays and their API booking links. "
+        "If event/date searches are sparse, broaden to the venue city and nearby areas "
+        "on both providers, then separately verify stay dates; never treat indexed dates "
+        "or starting prices as availability for the user's trip. When neither provider "
+        "has a suitable verified stay, or affiliate conversion is unavailable, research "
+        "alternative hotels and provide verified resource links labeled 'Hotel resource "
+        "(not affiliate)'. Briefly explain the fallback. These links are not tracked "
+        "by Game Time and must not be described as earning commission. Do not add "
+        "alternative-provider links when suitable preferred options are available. "
+        "Never substitute an unrelated hotel link. This also applies when "
+        "API credentials are missing. Expedia is also available as a fallback or when "
+        "the user requests Expedia. Use only this separate affiliate entry: "
+        f"[Explore Expedia (affiliate)]({EXPEDIA_AFFILIATE_URL}). "
+        "Explain that users must search for the suggested hotel and confirm their dates "
+        "and price after opening it; it is not a property-specific booking link. "
+        "Do not append tracking parameters or claim this is a Travelpayouts link. "
         "Disclose potential affiliate commission; conversion does not establish "
         "availability, pricing or product commission eligibility. These rules override "
         "older booking policies in conversation history. "
@@ -107,6 +116,13 @@ def affiliate_url_for(destination_url: str) -> str:
 
 
 def with_hotel_booking_link(reply: str, suggests_hotels: bool = False) -> str:
-    """Convert supported hotel links and remove obsolete Expedia affiliate URLs."""
+    """Convert preferred hotel links and preserve the approved Expedia entry."""
     from travelpayouts import remove_expedia_affiliate_links
-    return remove_expedia_affiliate_links(monetize_hotel_markdown(remove_expedia_affiliate_links(reply)))
+    result = remove_expedia_affiliate_links(monetize_hotel_markdown(remove_expedia_affiliate_links(reply)))
+    if EXPEDIA_AFFILIATE_URL in result:
+        note = "Search for your chosen hotel on Expedia and confirm dates and price; this affiliate entry is not a property-specific link."
+        if note not in result:
+            result += "\n\n" + note
+        if "may earn a commission" not in result.lower():
+            result += "\n\nGame Time may earn a commission from qualifying bookings through these links."
+    return result
