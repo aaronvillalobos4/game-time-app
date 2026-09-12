@@ -1,12 +1,14 @@
 # Hotel affiliate links
 
-Klook and KKday are preferred accommodation research providers. The chat, hotel
-research task, coordinator and revision prompts share this policy: search both
-first, verify overnight stays and trip fit, then fall back to other providers if
-necessary. Existing user hotel choices take precedence. Accommodation URL paths
-on klook.com and kkday.com are eligible for conversion; ambiguous product URLs
-without hotel/accommodation/staycation markers remain unchanged. Conversion is
-not proof of overnight availability or commission eligibility under brand terms.
+Klook and KKday are the only hotel booking providers enabled for Travelpayouts
+conversion. Chat, hotel research, coordinator and revision prompts require successful
+API-generated links for hotel booking actions. Other providers may be cited only
+as research sources. When conversion fails or credentials are absent, recognized
+raw hotel Markdown links are relabeled Research source, with no booking fallback.
+User hotel preferences are preserved but do not override the booking-provider restriction.
+Accommodation URL paths on klook.com and kkday.com are eligible; ambiguous product
+URLs without hotel/accommodation/staycation markers remain research sources.
+Conversion is not proof of availability or commission eligibility.
 Live checks on September 11, 2026 created links for Klook's hotel landing page
 and KKday's www Japan hotel promotion page. The tested m.kkday.com hotel URL
 returned "not brand link"; it remains a source link. Agents are instructed to
@@ -36,9 +38,9 @@ Recognized Expedia affiliate URLs are removed from new replies and revisions.
 Previously displayed messages are not retroactively changed. Expedia is excluded
 from Travelpayouts conversion; ordinary untracked Expedia research links may remain.
 
-Hotel URL detection currently covers booking.com, hotels.com, agoda.com, trip.com hotel paths, and hostelworld.com. This allowlist does
-not imply account eligibility. Expedia UK and Ticketmaster are excluded from
-Travelpayouts conversion. Add other provider domains after confirming API support.
+The conversion allowlist is limited to klook.com and kkday.com accommodation
+paths, including subdomains. Other hotel providers are never sent to this API.
+Flight and Ticketmaster link handling are unchanged.
 
 The API documents a limit of 100 requests/minute per partner ID. Batching and
 caching reduce traffic but do not impose an account-wide limit across workers;

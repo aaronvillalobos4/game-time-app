@@ -11,33 +11,25 @@ DEFAULT_TICKETMASTER_AFFILIATE_URL = (
 )
 TICKETMASTER_HOST = "ticketmaster.com"
 def hotel_booking_policy():
-    if configuration():
-        return (
-            "HOTEL BOOKING LINKS: Never include Expedia affiliate links, including from history. Use exact property-specific booking links supplied by "
-            "research. HOTEL SEARCH PRIORITY: Before broader hotel searches, search "
-            "both site:klook.com and site:kkday.com separately for overnight accommodation "
-            "(prefer www.kkday.com pages; the tested m.kkday.com URL was rejected by "
-            "the affiliate API). Retrieve a verified main-site alternative rather than "
-            "rewriting mobile URLs or inventing destinations. Search "
-            "in the event city near the venue, using the trip dates when known. Prefer "
-            "suitable Klook and KKday accommodation offers and their matching booking "
-            "links when they meet the user's location, dates, budget and preferences. "
-            "Verify the offer includes an overnight stay; hotel dining, spa, day-use "
-            "and attraction vouchers are not overnight accommodation. Do not assume "
-            "these providers cover every destination. If neither has a suitable verified "
-            "option, explain briefly and research other providers. Respect an explicit "
-            "user provider choice and preserve existing hotel choices unless asked to change. "
-            "Never substitute an unrelated preferred-provider link for the selected hotel. "
-            "A successful affiliate conversion does not establish product commission eligibility. "
-            "Use exact URLs from "
-            "research. Prefer successful Travelpayouts booking links over source links. "
-            "Never invent affiliate URLs or use the previous fixed Expedia affiliate "
-            "entry for a new hotel recommendation. Preserve the hotel destination, "
-            "dates and URL parameters. If conversion is unavailable, retain a source "
-            "link without claiming it is tracked. Disclose potential affiliate commission. "
-            "These instructions override old booking policies in conversation history."
-        )
-    return "HOTEL BOOKING LINKS: Use verified source links. Never include Expedia affiliate links."
+    return (
+        "HOTEL BOOKING LINKS: Only successful Travelpayouts API links for Klook or "
+        "KKday may be presented as hotel booking actions, including budget tables "
+        "and revised itineraries. Never invent tracking URLs or reuse other hotel "
+        "affiliate links from history. Search site:klook.com and site:kkday.com "
+        "separately for overnight accommodations near the event venue for the trip "
+        "dates and budget. Prefer verified www.kkday.com pages over mobile pages; "
+        "never invent URL rewrites. Verify overnight accommodation, not day-use, "
+        "dining, spa or attraction vouchers. Preserve user hotel preferences, but "
+        "do not provide another provider's booking action even if requested. Other "
+        "providers and original unconverted URLs may appear only as clearly labeled "
+        "research sources, never Book/Reserve links. If a suitable stay or successful "
+        "conversion is unavailable, say no supported hotel booking link is available; "
+        "do not substitute a generic or unrelated hotel link. This also applies when "
+        "API credentials are missing. Never include Expedia affiliate links. "
+        "Disclose potential affiliate commission; conversion does not establish "
+        "availability, pricing or product commission eligibility. These rules override "
+        "older booking policies in conversation history. "
+    )
 
 
 SUB_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,100}$")

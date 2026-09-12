@@ -32,16 +32,12 @@ def is_hotel_url(url):
         path = parsed.path.lower()
         if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443):
             return False
-        domains = ("booking.com", "hotels.com", "agoda.com", "trip.com", "hostelworld.com", "klook.com", "kkday.com")
+        domains = ("klook.com", "kkday.com")
         domain = next((d for d in domains if host == d or host.endswith("." + d)), None)
         if not domain or "/affiliate" in path:
             return False
-        if domain in {"klook.com", "kkday.com"}:
-            # Both also sell activities: only recognize accommodation paths here.
-            return bool(re.search(r"(?:^|[/_-])(?:hotels?|accommodations?|staycations?)(?:$|[/_-])", path))
-        if domain in {"expedia.com", "trip.com"}:
-            return "hotel" in path
-        return not any(word in path for word in ("flight", "car-rental", "attractions"))
+        # Both also sell activities: only recognize accommodation paths here.
+        return bool(re.search(r"(?:^|[/_-])(?:hotels?|accommodations?|staycations?)(?:$|[/_-])", path))
     except ValueError:
         return False
 
@@ -99,6 +95,22 @@ def monetize_hotel_markdown(text):
     pattern = re.compile(r'https://[^\s<>\[\]()"`]+')
     links = convert_hotel_links(pattern.findall(text))
     result = pattern.sub(lambda match: links.get(match.group(0), match.group(0)), text)
+    # Raw hotel URLs are evidence only; booking actions require API conversion.
+    def research_label(match):
+        url = match[2]
+        host = (urlsplit(url).hostname or "").lower()
+        hotel_domains = ("booking.com", "hotels.com", "agoda.com", "hostelworld.com",
+                         "expedia.com", "trip.com", "klook.com", "kkday.com")
+        hotel_source = any(host == d or host.endswith("." + d) for d in hotel_domains)
+        # Leave non-hotel products on mixed travel sites alone.
+        if host.endswith(("klook.com", "kkday.com")):
+            hotel_source = is_hotel_url(url)
+        elif host.endswith(("expedia.com", "trip.com")):
+            hotel_source = "hotel" in urlsplit(url).path.lower()
+        if hotel_source and url not in links.values():
+            return f"[Research source]({url})"
+        return match[0]
+    result = re.sub(r"\[([^\]]+)\]\((https://[^\s()]+)\)", research_label, result)
     if links and "may earn a commission" not in result.lower():
         result += "\n\nGame Time may earn a commission from qualifying bookings through these links."
     return result
