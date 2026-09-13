@@ -265,7 +265,8 @@ export default function Home() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center bg-[#0f172a] p-6 text-white print:bg-white print:p-0 print:text-black">
+    <main className="game-shell min-h-screen text-white print:bg-white print:p-0 print:text-black">
+      <div className="stadium-scene print:hidden" aria-hidden="true"><div className="stadium-lights stadium-lights-left" /><div className="stadium-lights stadium-lights-right" /><div className="stadium-field" /></div>
       <Script strategy="afterInteractive" src="https://www.googletagmanager.com/gtag/js?id=G-CP8PCZ4F12" />
       <Script id="google-analytics" strategy="afterInteractive">
         {`window.dataLayer = window.dataLayer || [];
@@ -274,19 +275,26 @@ export default function Home() {
           gtag('config', 'G-CP8PCZ4F12');`}
       </Script>
 
-      <div className="my-4 w-full max-w-3xl space-y-6">
-        <header className="flex flex-col items-center gap-2 text-center print:hidden">
-          <Image src="/logo.png" alt="Game Time logo" width={200} height={200} priority className="h-auto w-40 object-contain sm:w-50" />
-          <h1 className="text-3xl font-extrabold tracking-tight text-red-600">Game Time</h1>
-          <p className="text-xs text-gray-400 sm:text-sm">AI that finds tickets, flights, and hotels for your next sports trip.</p>
+      <div className="game-content">
+        <header className="game-header print:hidden">
+          <a href="/" className="game-brand" aria-label="Game Time home"><Image src="/logo.png" alt="" width={64} height={64} priority className="h-12 w-12 object-contain" /><span>GAME<span className="text-sky-400">TIME</span><small>BE THERE FOR IT.</small></span></a>
+          <a href="#trip-message" className="header-link">Plan your next trip <span aria-hidden="true">↗</span></a>
         </header>
 
-        <SportsTicker />
+        <section className="game-hero print:hidden">
+          <p className="hero-eyebrow"><span /> YOUR AI SPORTS TRAVEL ASSISTANT</p>
+          <h1>The game is calling.<br /><span>Make your way there.</span></h1>
+          <p>From the first whistle to the final night. Find your game,<br className="hidden sm:block" /> tickets, flights, and stays — in one conversation.</p>
+          <div className="hero-services"><span>01 / Find your game</span><span>02 / Build your trip</span><span>03 / Be there</span></div>
+        </section>
+
+        <div className="planner-panel">
+        <div className="planner-heading print:hidden"><div><span className="assistant-mark" aria-hidden="true">✦</span><div><h2>Game Time AI</h2><p>Your next great sports story starts here.</p></div></div><span className="assistant-status"><i /> Ready to plan</span></div>
 
         <section ref={conversationRef} onScroll={() => {
           const panel = conversationRef.current;
           if (panel) followLatestRef.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 80;
-        }} aria-label="Conversation" aria-live="polite" className="max-h-[65vh] min-h-80 space-y-4 overflow-y-auto rounded-2xl border border-slate-800 bg-[#1e293b] p-4 shadow-xl sm:p-6 print:max-h-none print:overflow-visible print:border-0 print:bg-white print:p-0 print:shadow-none">
+        }} aria-label="Conversation" aria-live="polite" className="conversation-panel max-h-[60vh] min-h-56 space-y-4 overflow-y-auto p-4 sm:p-6 print:max-h-none print:overflow-visible print:p-0">
           {messages.map((message, index) => message.kind === "itinerary" ? (
             <article key={message.id} aria-label="Trip itinerary" className={`min-w-0 space-y-4 rounded-xl border border-slate-600 bg-slate-900 p-4 sm:p-6 ${message.id === activeItinerary?.id ? "print:border-0 print:bg-white print:p-0 print:text-black" : "print:hidden"}`}>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -305,7 +313,8 @@ export default function Home() {
               {message.id === activeItinerary?.id && <p className="text-sm text-slate-300 print:hidden">Want to make changes? Ask below to adjust your budget, hotel, tickets, or travel.</p>}
             </article>
           ) : (
-            <div key={`${message.sender}-${index}`} className={`min-w-0 max-w-[95%] sm:max-w-[90%] rounded-xl p-3 text-sm sm:p-4 print:hidden ${message.sender === "user" ? "ml-auto rounded-br-none bg-red-600 text-white" : "rounded-bl-none bg-[#334155] text-slate-200"}`}>
+            <div key={`${message.sender}-${index}`} className={`chat-message min-w-0 max-w-[95%] sm:max-w-[90%] rounded-xl p-3 text-sm sm:p-4 print:hidden ${message.sender === "user" ? "chat-message-user ml-auto text-white" : "chat-message-bot text-slate-200"}`}>
+              <p className="message-author">{message.sender === "user" ? "YOU" : "GAME TIME AI"}</p>
               <TripMarkdown>{message.text}</TripMarkdown>
             </div>
           ))}
@@ -320,18 +329,22 @@ export default function Home() {
           )}
         </section>
 
-        <section className="space-y-3 print:hidden">
+        <section className="chat-composer space-y-3 print:hidden">
           <VoiceInput value={input} onChange={setInput} active={voiceActive} onActiveChange={setVoiceActive} disabled={loading} />
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-slate-400">Try asking:</span>
             {(itinerary ? ["Lower my total budget to $800", "Replace the hotel with a cheaper option", "Find a hotel closer to the stadium"] : PROMPT_CHIPS).map((chip) => <button key={chip} type="button" onClick={() => void handleSend(chip)} disabled={loading || voiceActive} className="rounded-full border border-slate-700 bg-[#1e293b] px-3 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-50">{chip}</button>)}
           </div>
-          <form onSubmit={handleSubmit} className="flex gap-2">
+          <form onSubmit={handleSubmit} className="message-form flex gap-2">
             <label htmlFor="trip-message" className="sr-only">Message Game Time</label>
             <input id="trip-message" value={input} onChange={(event) => setInput(event.target.value)} placeholder={itinerary ? "Ask a question or request an itinerary change..." : "Type your matchup, date, city, or budget..."} disabled={loading || voiceActive} maxLength={1000} autoComplete="off" className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-[#1e293b] px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500" />
             <button type="submit" disabled={loading || voiceActive || !input.trim()} className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-50">Send</button>
           </form>
         </section>
+        </div>
+
+        <div className="scoreboard-panel print:hidden"><div className="section-caption"><span>AROUND THE LEAGUES</span><span>The next trip starts with a great matchup.</span></div><SportsTicker /></div>
+        <footer className="game-footer print:hidden"><span>BIG GAMES. UNFORGETTABLE TRIPS.</span><span>Powered by curiosity. Planned with AI.</span></footer>
 
         {error && <div role="alert" className="rounded-xl border border-red-800 bg-red-950/80 p-4 text-sm text-red-200 print:hidden"><p className="font-semibold">Request error</p><p className="mt-1 text-xs text-red-300">{error}</p></div>}
 
