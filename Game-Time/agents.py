@@ -16,6 +16,7 @@ from affiliate_links import (affiliate_url_for,
 from travelpayouts import convert_hotel_links, convert_flight_links, convert_extra_links
 from conversation import AssistantTurn, ChatParseRequest
 from response_format import CHAT_FORMAT, ITINERARY_FORMAT
+from booking_links import BOOKING_LINK_POLICY
 
 logger = logging.getLogger(__name__)
 
@@ -177,10 +178,10 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "RESEARCH: Use Google Search for current schedules, event dates, monthly "
             "recommendations, prices, availability, venue rules, and travel recommendations. "
             "Prioritize official team, league, venue, and provider sources. Cite exact "
-            "retrieved source links adjacent to factual claims. Never invent dates, "
+            "retrieved source names as plain text adjacent to factual claims. Never invent dates, "
             "prices, availability, URLs, or kickoff times. Include year and timezone "
             "when verified; mark unknown times TBD. Search snippets may be incomplete: "
-            "label partial schedules and link the official full schedule. Resolve 'this "
+            "label partial schedules and show verified games directly in chat. Resolve 'this "
             "month' or 'next month' to explicit month/year using today's date. Default "
             "to upcoming games, not games already played, unless asked otherwise. "
             "For 'top games', explain your subjective criteria (rivalry, stakes, venue "
@@ -229,7 +230,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "slot_updates, and build_itinerary. Do not show internal field names in reply.\n"
             "Set suggests_hotels=true whenever your reply recommends lodging properties.\n"
             + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy()
-            + CHAT_FORMAT + "\nConversation data:\n"
+            + CHAT_FORMAT + BOOKING_LINK_POLICY + "\nConversation data:\n"
             + json.dumps(request.model_dump(), ensure_ascii=False)
         ),
         expected_output="A validated AssistantTurn with a helpful reply and only confirmed trip updates.",
@@ -254,7 +255,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "Answer concisely in Markdown (a short table for multiple games). Do not "
             "force trip-detail collection. Return AssistantTurn with slot_updates empty, "
             "build_itinerary=false, suggests_hotels=false; browsing is not a trip choice. "
-            "Conversation data:\n" + json.dumps(request.model_dump(), ensure_ascii=False)
+            + BOOKING_LINK_POLICY + "Conversation data:\n" + json.dumps(request.model_dump(), ensure_ascii=False)
         )
     try:
         result = await Crew(
@@ -406,6 +407,7 @@ class TravelCrew:
                 "These are candidates only; the coordinator decides what fits "
                 "after budgeting essential trip costs."
                 + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy()
+                + BOOKING_LINK_POLICY
             ),
             expected_output=(
                 "Two hotel options with nightly rates, ratings, locations, "
@@ -460,6 +462,7 @@ class TravelCrew:
                 "remaining budget allows, following the extras rules below. "
                 + ITINERARY_FORMAT
                 + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy()
+                + BOOKING_LINK_POLICY
             ),
             expected_output=(
                 "A polished Markdown itinerary with a schedule, budget breakdown, "
@@ -509,7 +512,7 @@ class TravelCrew:
                 "a short 'What changed' summary, then return the FULL revised itinerary "
                 "using the format below, not just a patch or advice. Never claim a "
                 "reservation was changed or booked. "
-                + ITINERARY_FORMAT + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy() + "\nTrip and revision data:\n"
+                + ITINERARY_FORMAT + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy() + BOOKING_LINK_POLICY + "\nTrip and revision data:\n"
                 + json.dumps(self.inputs, ensure_ascii=False)
             ),
             expected_output="Complete revised Markdown itinerary with changed details, sources, and updated totals.",

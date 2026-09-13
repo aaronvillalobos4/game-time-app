@@ -2,6 +2,7 @@
 
 import os
 import re
+from booking_links import booking_links_only
 from travelpayouts import configuration, monetize_hotel_markdown
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -171,4 +172,4 @@ def with_hotel_booking_link(reply: str, suggests_hotels: bool = False) -> str:
             result += "\n\n" + note
         if "may earn a commission" not in result.lower():
             result += "\n\nGame Time may earn a commission from qualifying bookings through these links."
-    return result
+    return booking_links_only(result)

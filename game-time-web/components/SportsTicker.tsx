@@ -50,7 +50,7 @@ export default function SportsTicker() {
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-xs">
           <span className="rounded bg-red-600 px-2 py-1 font-bold uppercase tracking-wide">Scoreboard</span>
-          <a href="https://www.espn.com/scoreboard/" target="_blank" rel="noopener noreferrer" className="text-slate-300 underline underline-offset-2">Scores from ESPN ↗</a>
+          <span className="text-slate-300">Scores from ESPN</span>
         </div>
         <button type="button" onClick={() => setRefreshing((value) => !value)} aria-pressed={refreshing} className="text-xs text-slate-400 hover:text-white">{refreshing ? "Pause updates" : "Resume updates"}</button>
       </div>
@@ -60,11 +60,11 @@ export default function SportsTicker() {
       <p role="status" className="mb-2 text-xs text-slate-400">{loading ? "Loading scores…" : error ?? (games.length ? `Checked ${updated}. ${refreshing ? "Refreshes every minute." : "Updates paused."}` : "No games currently listed for this league.")}</p>
       <div key={league} tabIndex={0} role="region" aria-label="Game scores — scroll horizontally for more" className="flex gap-2 overflow-x-auto pb-2 focus-visible:outline-2 focus-visible:outline-red-400">
         {games.map((game) => (
-          <a key={game.id} href={game.url} target="_blank" rel="noopener noreferrer" aria-label={`${game.name}: ${game.status}. View on ESPN`} className="w-44 shrink-0 rounded-xl border border-slate-700 bg-slate-900 p-3 hover:border-red-400 focus-visible:outline-2 focus-visible:outline-red-400">
+          <article key={game.id} aria-label={`${game.name}: ${game.status}`} className="w-44 shrink-0 rounded-xl border border-slate-700 bg-slate-900 p-3">
             <p className={`mb-2 text-xs font-semibold ${game.live ? "text-emerald-400" : "text-slate-400"}`}>{game.live ? "● LIVE · " : ""}{game.status}</p>
             {game.teams.map((team, index) => <div key={index} className="flex justify-between gap-3 text-sm font-bold"><span>{team.name}</span><span className="tabular-nums">{team.score}</span></div>)}
             {game.date && !Number.isNaN(Date.parse(game.date)) && <p className="mt-2 text-[11px] text-slate-400">{new Date(game.date).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} (local)</p>}
-          </a>
+          </article>
         ))}
       </div>
       {games.length > 3 && <p className="text-right text-xs text-slate-400">Scroll for more games →</p>}
