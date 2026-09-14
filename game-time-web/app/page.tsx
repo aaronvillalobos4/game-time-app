@@ -69,6 +69,7 @@ export default function Home() {
   const conversationRef = useRef<HTMLElement>(null);
   const followLatestRef = useRef(true);
   const [loading, setLoading] = useState(false);
+  const sendingRef = useRef(false);
   const [status, setStatus] = useState("");
   const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -180,9 +181,10 @@ export default function Home() {
     }
   };
 
-  const handleSend = async (rawText: string) => {
+  const handleSend = async (rawText: string, fromVoice = false): Promise<string | undefined> => {
     const text = rawText.trim();
-    if (!text || loading || voiceActive) return;
+    if (!text || sendingRef.current || (voiceActive && !fromVoice)) return;
+    sendingRef.current = true;
 
     followLatestRef.current = true;
     setMessages((current) => [...current, { sender: "user", text }]);
@@ -210,23 +212,26 @@ export default function Home() {
         setSlots({});
         setActiveItinerary(null);
         setMessages([{ sender: "bot", text: parsed.follow_up_question || INITIAL_MESSAGE }]);
-        return;
+        return parsed.follow_up_question || INITIAL_MESSAGE;
       }
 
       // The server merges confirmed choices and clears stale dependent details.
       const updatedSlots = parsed.slots ?? slots;
       setSlots(updatedSlots);
       if (parsed.follow_up_question) addBotMessage(parsed.follow_up_question);
-      if (!parsed.is_complete) return;
+      if (!parsed.is_complete) return parsed.follow_up_question ?? undefined;
       await generateItinerary(updatedSlots, text, JSON.stringify([
         ...conversationHistory(messages),
         { role: "assistant", content: parsed.follow_up_question ?? "" },
       ]).slice(-40_000));
+      return "Your itinerary is ready in chat, with the game-day plan, budget, and booking options. What would you like to adjust?";
     } catch (caught: unknown) {
       console.error("Game Time error:", caught);
       setError(getErrorMessage(caught));
+      return "I couldn't finish that request. Please try again. Your previous trip details are still in chat.";
     } finally {
       setLoading(false);
+      sendingRef.current = false;
       setStatus("");
     }
   };
@@ -326,7 +331,7 @@ export default function Home() {
         </section>
 
         <section className="chat-composer space-y-3 print:hidden">
-          <VoiceInput value={input} onChange={setInput} active={voiceActive} onActiveChange={setVoiceActive} disabled={loading} />
+          <VoiceInput endpoint={`${API_URL}/api/voice/session`} onTurn={text => handleSend(text, true)} onActiveChange={setVoiceActive} disabled={loading} />
           <form onSubmit={handleSubmit} className="message-form flex gap-2">
             <label htmlFor="trip-message" className="sr-only">Message Game Time</label>
             <input id="trip-message" value={input} onChange={(event) => setInput(event.target.value)} placeholder={itinerary ? "Ask a question or request an itinerary change..." : "Type your matchup, date, city, or budget..."} disabled={loading || voiceActive} maxLength={1000} autoComplete="off" className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-[#1e293b] px-4 py-3 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500" />

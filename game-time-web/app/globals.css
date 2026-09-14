@@ -74,6 +74,12 @@ body {
 .voice-chat-wave i { width: 3px; height: 9px; border-radius: 3px; background: currentColor; }
 .voice-chat-wave i:nth-child(2), .voice-chat-wave i:nth-child(4) { height: 18px; }
 .voice-chat-wave i:nth-child(3) { height: 26px; }
+.voice-session-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.voice-session-controls button { min-height: 44px; padding: 9px 13px; border: 1px solid #557b9c66; border-radius: 12px; font-size: 12px; }
+.chat-composer .voice-session-controls .voice-end { border-color: #fb718566; color: #fda4af; }
+.voice-session-controls button:disabled { opacity: .5; }
+.voice-transcript { max-height: 80px; overflow-y: auto; font-size: 13px; color: #cbd5e1; overflow-wrap: anywhere; }
+.voice-transcript span { color: #7dd3fc; }
 @media (prefers-reduced-motion: no-preference) {
   .voice-chat-button[aria-pressed="true"] .voice-chat-wave i { animation: voice-listening .8s ease-in-out infinite alternate; }
   .voice-chat-button[aria-pressed="true"] .voice-chat-wave i:nth-child(2n) { animation-delay: -.4s; }

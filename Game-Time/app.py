@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from agents import TravelCrew, answer_trip_message, evaluate_user_intent
 from conversation import ChatParseRequest, TripSlots, merge_slots, next_question
 from affiliate_links import with_hotel_booking_link
+from voice import router as voice_router
 
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ class ItineraryRequest(BaseModel):
 
 
 app = FastAPI(title="Game Time API", version="1.1.0")
+app.include_router(voice_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
