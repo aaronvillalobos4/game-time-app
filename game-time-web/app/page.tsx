@@ -20,10 +20,6 @@ const PROMPT_CHIPS = [
   "What are the top college football games to attend this month?",
   "Which airport should I fly into for a game at Kyle Field?",
   "Show me the Texas A&M Aggies football schedule",
-  "🏈 Cowboys vs Eagles in Dallas",
-  "⚾ Astros vs Rangers in Houston",
-  "🏀 Lakers in LA with $1500 budget",
-  "🏒 Golden Knights in Vegas flying from Austin",
 ];
 
 type Message = { sender: "user" | "bot"; text: string; id?: string; kind?: "itinerary" };

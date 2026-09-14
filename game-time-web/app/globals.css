@@ -61,6 +61,24 @@ body {
 .chat-composer button { transition: background .2s, border-color .2s, box-shadow .2s; }
 .chat-composer button:not([type="submit"]) { background: #132335; border-color: #557b9c4a; color: #b4cadc; }
 .chat-composer button:not([type="submit"]):hover:not(:disabled) { background: #1a3852; border-color: #4dbcfb88; }
+.chat-composer .voice-chat-button:not([type="submit"]) { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; text-align: left; border: 1px solid #38bdf877; border-radius: 16px; background: linear-gradient(110deg, #0c3553, #102235); color: #ecf8ff; box-shadow: inset 0 1px #a7e7ff15, 0 0 22px #0ea5e918; cursor: pointer; }
+.chat-composer .voice-chat-button:not([type="submit"]):hover:not(:disabled) { background: linear-gradient(110deg, #124768, #14314b); border-color: #7dd3fc; box-shadow: 0 0 24px #0ea5e930; }
+.chat-composer .voice-chat-button[aria-pressed="true"]:not([type="submit"]) { border-color: #67e8f9; background: linear-gradient(110deg, #12536a, #10324a); }
+.chat-composer .voice-chat-button:disabled { cursor: not-allowed; }
+.voice-chat-icon { display: grid; place-items: center; flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; background: #38bdf81f; border: 1px solid #7dd3fc55; color: #a5edff; }
+.voice-chat-icon svg { width: 22px; height: 22px; }
+.voice-chat-copy { flex: 1; min-width: 0; }
+.voice-chat-copy strong { display: block; font-size: 14px; font-weight: 600; }
+.voice-chat-copy > span { display: block; margin-top: 3px; font-size: 11px; line-height: 1.5; color: #a8cadd; }
+.voice-chat-wave { display: flex; align-items: center; gap: 3px; height: 28px; color: #7dd3fc; }
+.voice-chat-wave i { width: 3px; height: 9px; border-radius: 3px; background: currentColor; }
+.voice-chat-wave i:nth-child(2), .voice-chat-wave i:nth-child(4) { height: 18px; }
+.voice-chat-wave i:nth-child(3) { height: 26px; }
+@media (prefers-reduced-motion: no-preference) {
+  .voice-chat-button[aria-pressed="true"] .voice-chat-wave i { animation: voice-listening .8s ease-in-out infinite alternate; }
+  .voice-chat-button[aria-pressed="true"] .voice-chat-wave i:nth-child(2n) { animation-delay: -.4s; }
+  @keyframes voice-listening { to { transform: scaleY(.4); opacity: .55; } }
+}
 .message-form { padding-top: 5px; }
 .message-form input { background: #030d1b; border-color: #50739366; min-height: 52px; }
 .message-form input:focus { --tw-ring-color: #38bdf8; }

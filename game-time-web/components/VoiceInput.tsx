@@ -113,9 +113,13 @@ export default function VoiceInput({ value, onChange, active, onActiveChange, di
   };
 
   return (
-    <div className="space-y-1">
-      <button type="button" onClick={toggle} disabled={!supported || (disabled && !active)} aria-pressed={active} aria-describedby="voice-status" className={`rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${active ? "border-red-400 bg-red-600 text-white" : "border-slate-600 bg-slate-800 text-slate-200 hover:bg-slate-700"}`}>
-        {active ? "⏹ Stop microphone" : "🎙️ Speak your message"}
+    <div className="space-y-2">
+      <button type="button" onClick={toggle} disabled={!supported || (disabled && !active)} aria-label={active ? "Stop microphone" : "Talk to Game Time — dictate a message"} aria-pressed={active} aria-describedby="voice-status" className="voice-chat-button disabled:opacity-50">
+        <span className="voice-chat-icon" aria-hidden="true">
+          {active ? <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="3" /></svg> : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M9 22h6" /></svg>}
+        </span>
+        <span className="voice-chat-copy"><strong>{active ? "Microphone on" : "Talk to Game Time"}</strong><span>{active ? "Tap to stop recording" : "Speak your plans. We'll help with the rest."}</span></span>
+        <span className="voice-chat-wave" aria-hidden="true"><i /><i /><i /><i /><i /></span>
       </button>
       <p id="voice-status" role="status" className="text-xs text-slate-400">
         {!supported ? "Voice input isn't available in this browser. You can still type below." : notice || "Dictate in English, review the text, then send. Your browser may process audio through its speech service."}
