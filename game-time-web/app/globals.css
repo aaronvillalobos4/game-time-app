@@ -30,9 +30,7 @@ body {
 .game-shell { position: relative; isolation: isolate; overflow: clip; background: #030914; padding: 0 24px 24px; }
 .game-content { position: relative; max-width: 1040px; margin: auto; }
 .stadium-scene { position: absolute; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; background: radial-gradient(ellipse at 50% 28%, #0d34594d, transparent 48%); }
-.stadium-lights { position: absolute; top: 190px; width: 43%; height: 5px; background: repeating-linear-gradient(90deg, #d9f5ff 0 25px, transparent 25px 43px); box-shadow: 0 0 24px #40bfff, 0 20px 90px 26px #2789cc48; opacity: .7; }
-.stadium-lights-left { left: -6%; transform: rotate(23deg); }
-.stadium-lights-right { right: -6%; transform: rotate(-23deg); }
+.stadium-scene::before { content: ""; position: absolute; inset: 0 0 auto; height: clamp(800px, 75vw, 1150px); background: linear-gradient(180deg, #03091445 0%, #03091466 45%, #030914b3 78%, #030914 100%), url("/stadium-night.webp") center top / cover no-repeat; }
 .stadium-field { position: absolute; top: 470px; left: -30%; width: 160%; height: 700px; transform: perspective(450px) rotateX(62deg); transform-origin: center top; background-image: linear-gradient(#3b87b318 1px, transparent 1px), linear-gradient(90deg, #3b87b318 1px, transparent 1px); background-size: 85px 70px; mask-image: linear-gradient(transparent, #000 20%, transparent 85%); }
 .game-header { display: flex; align-items: center; justify-content: space-between; padding: 22px 0; border-bottom: 1px solid #94cfff17; }
 .game-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: -.6px; }

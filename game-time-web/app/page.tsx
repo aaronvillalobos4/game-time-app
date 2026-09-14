@@ -266,7 +266,7 @@ export default function Home() {
 
   return (
     <main className="game-shell min-h-screen text-white print:bg-white print:p-0 print:text-black">
-      <div className="stadium-scene print:hidden" aria-hidden="true"><div className="stadium-lights stadium-lights-left" /><div className="stadium-lights stadium-lights-right" /><div className="stadium-field" /></div>
+      <div className="stadium-scene print:hidden" aria-hidden="true"><div className="stadium-field" /></div>
       <Script strategy="afterInteractive" src="https://www.googletagmanager.com/gtag/js?id=G-CP8PCZ4F12" />
       <Script id="google-analytics" strategy="afterInteractive">
         {`window.dataLayer = window.dataLayer || [];
