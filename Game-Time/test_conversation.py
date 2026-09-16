@@ -12,6 +12,18 @@ from conversation import AssistantTurn, ChatMessage, ChatParseRequest, TripSlots
 
 
 class ConversationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_schedule_listing_has_full_season_policy_and_research_budget(self):
+        for message in ("Show me the Cowboys schedule", "Show me the next five games"):
+            with patch("agents.Crew") as crew:
+                crew.return_value.kickoff_async = AsyncMock(return_value=SimpleNamespace(
+                    pydantic=AssistantTurn(reply="Schedule")))
+                await answer_trip_message(ChatParseRequest(message=message))
+            self.assertEqual(crew.call_args.kwargs["agents"][0].max_iter, 8)
+            description = crew.call_args.kwargs["tasks"][0].description
+            self.assertIn("ENTIRE relevant season schedule", description)
+            self.assertIn("Honor explicit counts and filters", description)
+            self.assertIn("never claim a partial list", description)
+
     async def test_schedule_path_preserves_state_and_uses_short_research(self):
         result = SimpleNamespace(pydantic=AssistantTurn(reply="Verified game date",
             build_itinerary=True, slot_updates=TripSlots(event="Unchosen game")))

@@ -20,6 +20,29 @@ from booking_links import BOOKING_LINK_POLICY
 
 logger = logging.getLogger(__name__)
 
+SCHEDULE_DISPLAY_POLICY = (
+    "SCHEDULE DISPLAY: When asked to show/list a team's or league's schedule, show "
+    "the ENTIRE relevant season schedule in chat by default, including completed "
+    "and upcoming games. State the season/year and scope. Use the current season "
+    "unless another season is requested; clarify if team, sport or season is ambiguous. "
+    "Do not arbitrarily limit to a few games, summarize with 'and more', or replace "
+    "the schedule with a link. Honor explicit counts and filters (next five games, "
+    "home games only, September, remaining games). A next-game question requests "
+    "one game, not the entire season. For an unrestricted schedule, research the "
+    "official season listing and use targeted month/segment searches to fill gaps; "
+    "do not stop at the first search snippet. Present all verified entries chronologically "
+    "in Markdown tables with date, matchup/opponent, home/away or venue, and time/timezone. "
+    "Use TBD for unannounced times. Include announced postseason/preseason separately "
+    "where applicable; never invent unannounced fixtures. This overrides generic "
+    "brevity and upcoming-only defaults. If the full listing cannot be verified within "
+    "available research, clearly label the result incomplete, state the covered scope "
+    "and what is missing; never claim a partial list is the entire schedule. "
+)
+
+
+def requests_schedule_listing(message: str) -> bool:
+    return bool(re.search(r"\bschedules?\b|\b(?:show|list)\b.*\bgames?\b", message, re.I))
+
 
 def is_simple_schedule_question(message: str) -> bool:
     """Keep planning, recommendations and mixed requests on the full path."""
@@ -157,7 +180,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
         ),
         tools=[google_search],
         llm=conversation_llm,
-        max_iter=4 if simple_schedule else 8,
+        max_iter=4 if simple_schedule and not requests_schedule_listing(request.message) else 8,
         verbose=False,
     )
     task = Task(
@@ -257,6 +280,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "build_itinerary=false, suggests_hotels=false; browsing is not a trip choice. "
             + BOOKING_LINK_POLICY + "Conversation data:\n" + json.dumps(request.model_dump(), ensure_ascii=False)
         )
+    task.description += "\n" + SCHEDULE_DISPLAY_POLICY
     try:
         result = await Crew(
             agents=[researcher], tasks=[task], process=Process.sequential, verbose=False,
