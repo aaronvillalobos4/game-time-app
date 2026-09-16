@@ -38,7 +38,11 @@ class ChatParseRequest(BaseModel):
 class AssistantTurn(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    reply: str = Field(min_length=1, max_length=8_000)
+    reply: str = Field(min_length=1, max_length=8_000, description=(
+        "The actual researched answer to the user's latest question, including the "
+        "schedule table or requested details. Preserve those details when converting "
+        "agent output to this schema. Never replace the answer with an acknowledgement "
+        "or thank the user for information supplied by research tools."))
     slot_updates: TripSlots = Field(default_factory=TripSlots)
     build_itinerary: bool = False
     suggests_hotels: bool = False

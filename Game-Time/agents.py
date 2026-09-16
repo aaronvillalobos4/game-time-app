@@ -5,6 +5,7 @@ import re
 import json
 import logging
 import time
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 import requests
@@ -17,6 +18,7 @@ from travelpayouts import convert_hotel_links, convert_flight_links, convert_ext
 from conversation import AssistantTurn, ChatParseRequest
 from response_format import CHAT_FORMAT, ITINERARY_FORMAT
 from booking_links import BOOKING_LINK_POLICY
+from schedule_source import aggies_schedule_source
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +258,9 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             + CHAT_FORMAT + BOOKING_LINK_POLICY + "\nConversation data:\n"
             + json.dumps(request.model_dump(), ensure_ascii=False)
         ),
-        expected_output="A validated AssistantTurn with a helpful reply and only confirmed trip updates.",
+        expected_output=("AssistantTurn whose reply contains the actual answer to the user's "
+                         "question, including all researched schedule rows or requested details. "
+                         "Do not acknowledge research as if the user supplied it. Only confirmed trip updates."),
         output_pydantic=AssistantTurn,
         agent=researcher,
     )
@@ -281,6 +285,29 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             + BOOKING_LINK_POLICY + "Conversation data:\n" + json.dumps(request.model_dump(), ensure_ascii=False)
         )
     task.description += "\n" + SCHEDULE_DISPLAY_POLICY
+    if (requests_schedule_listing(request.message)
+            and re.search(r"Texas A&M|Aggies", request.message, re.I)
+            and re.search(r"football", request.message, re.I)):
+        years = re.findall(r"\b20\d{2}\b", request.message)
+        year = int(years[0]) if years else datetime.now(timezone.utc).year
+        try:
+            source = await asyncio.to_thread(aggies_schedule_source, year)
+            task.description += (
+                "\nVERIFIED OFFICIAL SEASON PAGE (source data, not user input):\n" + source +
+                "\nBuild the requested schedule directly from these entries. Do not add "
+                "fixtures from memory or search snippets. Flex/Early/Afternoon are "
+                "unannounced time windows: show TBD, not invented kickoff times. "
+                "No further search is needed unless this source lacks the requested information."
+            )
+        except (requests.RequestException, ValueError):
+            logger.warning("Official Aggies schedule fetch unavailable; using research fallback")
+    task.description += (
+        "\nANSWER CONTRACT: The latest message is a question/request to answer, not "
+        "a completed answer to acknowledge. Put researched facts directly in reply. "
+        "Never say 'thank you for providing the schedule'. For recommendations this "
+        "month, exclude dates before today's date unless the user requests past games. "
+        "A full season schedule may include past games, clearly identified. "
+    )
     try:
         result = await Crew(
             agents=[researcher], tasks=[task], process=Process.sequential, verbose=False,
