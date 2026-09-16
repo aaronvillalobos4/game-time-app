@@ -24,8 +24,18 @@ logger = logging.getLogger(__name__)
 def is_simple_schedule_question(message: str) -> bool:
     """Keep planning, recommendations and mixed requests on the full path."""
     return (len(message) <= 240
-            and not re.search(r"\b(hotel|flight|budget|itinerary|book|build|change|plan|best|top|recommend|tickets?)\b", message, re.I)
-            and bool(re.search(r"\b(next (?:home |away )?game|when (?:is|are|do|does)|what time|schedule|kickoff)\b", message, re.I)))
+            and not re.search(
+                r"\b(hotel|flight|budget|itinerary|book|build|change|plan|best|top|"
+                r"recommend|tickets?)\b",
+                message,
+                re.I,
+            )
+            and bool(re.search(
+                r"\b(next (?:home |away )?game|when (?:is|are|do|does)|what time|"
+                r"schedule|kickoff|where(?:'s| is| are)|location|venue|stadium)\b",
+                message,
+                re.I,
+            )))
 
 
 RESET_PATTERN = re.compile(
@@ -157,7 +167,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
         ),
         tools=[google_search],
         llm=conversation_llm,
-        max_iter=4 if simple_schedule else 8,
+        max_iter=2 if simple_schedule else 8,
         verbose=False,
     )
     task = Task(

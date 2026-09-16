@@ -21,14 +21,15 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(turn.build_itinerary)
         self.assertIsNone(turn.slot_updates.event)
         agent = crew.call_args.kwargs["agents"][0]
-        self.assertEqual(agent.max_iter, 4)
+        self.assertEqual(agent.max_iter, 2)
         self.assertIn("ONE focused search", crew.call_args.kwargs["tasks"][0].description)
 
     def test_mixed_and_planning_questions_keep_full_path(self):
         for message in ("When is the next game and find a hotel", "Top games this month?",
                         "Build my schedule", "What time is my flight?"):
             self.assertFalse(is_simple_schedule_question(message))
-        for message in ("Cowboys next home game?", "Show me the Aggies football schedule"):
+        for message in ("Cowboys next home game?", "Show me the Aggies football schedule",
+                        "Where is the next Cowboys game?", "What is the venue?"):
             self.assertTrue(is_simple_schedule_question(message))
 
     def setUp(self):
