@@ -19,6 +19,7 @@ from conversation import AssistantTurn, ChatParseRequest
 from response_format import CHAT_FORMAT, ITINERARY_FORMAT
 from booking_links import BOOKING_LINK_POLICY
 from schedule_source import aggies_schedule_source
+from budget_gate import BUDGET_QUESTION
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,15 @@ def google_search(query: str) -> str:
         logger.info("search_completed duration_ms=%.0f", (time.monotonic() - started) * 1000)
 
 
-def _google_search(query: str) -> str:
+@tool("Event Information Search")
+def event_information_search(query: str) -> str:
+    """Search sports dates/venues only before a trip budget has been provided."""
+    if re.search(r"ticket|flight|hotel|lodging|accommodation|fare|booking|price|rental", query, re.I):
+        return "Booking research requires a total trip budget first. " + BUDGET_QUESTION
+    return _google_search(query, monetize=False)
+
+
+def _google_search(query: str, monetize: bool = True) -> str:
     api_key = os.getenv("SERPER_API_KEY")
     if not api_key:
         return "Search unavailable: SERPER_API_KEY is not configured."
@@ -149,9 +158,9 @@ def _google_search(query: str) -> str:
         return "Search request failed: Serper returned invalid JSON."
 
     items = results.get("organic", [])
-    tracked_hotels = convert_hotel_links([item.get("link", "") for item in items])
-    tracked_flights = convert_flight_links([item.get("link", "") for item in items])
-    tracked_extras = convert_extra_links([item.get("link", "") for item in items])
+    tracked_hotels = convert_hotel_links([item.get("link", "") for item in items]) if monetize else {}
+    tracked_flights = convert_flight_links([item.get("link", "") for item in items]) if monetize else {}
+    tracked_extras = convert_extra_links([item.get("link", "") for item in items]) if monetize else {}
     options = []
     for item in items:
         title = item.get("title", "Untitled result")
@@ -180,7 +189,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "You are a friendly, knowledgeable sports travel assistant. You explain "
             "options conversationally and help fans make decisions at their own pace."
         ),
-        tools=[google_search],
+        tools=[google_search] if request.current_slots.budget is not None else [event_information_search],
         llm=conversation_llm,
         max_iter=4 if simple_schedule and not requests_schedule_listing(request.message) else 8,
         verbose=False,
@@ -285,6 +294,15 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             + BOOKING_LINK_POLICY + "Conversation data:\n" + json.dumps(request.model_dump(), ensure_ascii=False)
         )
     task.description += "\n" + SCHEDULE_DISPLAY_POLICY
+    task.description += (
+        "\nBUDGET FIRST: Before researching tickets, fares, hotels or building/revising "
+        "an itinerary, require current_slots.budget. If absent, collect user details "
+        "without booking research and ask: " + BUDGET_QUESTION +
+        " Never choose a sample budget without consent. General sports schedules and "
+        "venue facts may be answered without a budget. If the user supplies a budget "
+        "in this message but it is not yet in current_slots, save it in slot_updates "
+        "and acknowledge it before researching on the next turn."
+    )
     if (requests_schedule_listing(request.message)
             and re.search(r"Texas A&M|Aggies", request.message, re.I)
             and re.search(r"football", request.message, re.I)):

@@ -51,7 +51,8 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         request = ChatParseRequest(message=message, **kwargs)
         with patch("app.answer_trip_message", new_callable=AsyncMock, return_value=turn) as ai:
             result = await parse_intent(request)
-        ai.assert_awaited_once_with(request)
+        ai.assert_awaited_once()
+        self.assertEqual(ai.call_args.args[0].message, request.message)
         return result
 
     async def test_questions_preserve_complete_trip_and_do_not_build(self):

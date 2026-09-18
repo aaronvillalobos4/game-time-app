@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from agents import TravelCrew, answer_trip_message, evaluate_user_intent
 from conversation import ChatParseRequest, TripSlots, merge_slots, next_question
 from affiliate_links import with_hotel_booking_link
+from budget_gate import budget_from_message, needs_budget, BUDGET_QUESTION
 from voice import router as voice_router
 
 
@@ -71,6 +72,14 @@ async def parse_intent(request: ChatParseRequest) -> dict[str, object]:
             ),
         }
 
+    original_slots = request.current_slots
+    amount, sample = budget_from_message(request)
+    if amount is not None:
+        request = request.model_copy(update={"current_slots": request.current_slots.model_copy(update={"budget": amount})})
+    if request.current_slots.budget is None and needs_budget(text):
+        return {"is_reset": False, "is_complete": False,
+                "slots": request.current_slots.model_dump(), "follow_up_question": BUDGET_QUESTION}
+
     try:
         turn = await asyncio.wait_for(answer_trip_message(request), timeout=90)
         slots = merge_slots(request.current_slots, turn.slot_updates)
@@ -89,9 +98,11 @@ async def parse_intent(request: ChatParseRequest) -> dict[str, object]:
     missing_question = next_question(slots)
     complete = turn.build_itinerary and missing_question is None
     reply = await asyncio.to_thread(with_hotel_booking_link, turn.reply, turn.suggests_hotels)
+    if sample:
+        reply = "I'll use a suggested **$1,500 total trip budget** for now; you can change it anytime.\n\n" + reply
     if turn.build_itinerary and missing_question:
         reply = f"{reply}\n\nBefore I can build your itinerary: {missing_question}"
-    elif missing_question is None and not complete and slots != request.current_slots:
+    elif missing_question is None and not complete and slots != original_slots:
         reply += "\n\nWould you like me to build your itinerary with these details?"
     return {
         "is_reset": False,
