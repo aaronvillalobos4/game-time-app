@@ -3,6 +3,7 @@ uvicorn
 pydantic
 python-dotenv
 requests
+beautifulsoup4
 crewai
 openai
 langchain-openai

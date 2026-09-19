@@ -6,8 +6,8 @@ import json
 import logging
 import time
 import asyncio
-from datetime import datetime, timezone
-from typing import Any
+from datetime import date, datetime, timezone
+from typing import Any, Literal
 import requests
 from crewai import Agent, Crew, LLM, Process, Task
 from crewai.tools import tool
@@ -18,7 +18,8 @@ from travelpayouts import convert_hotel_links, convert_flight_links, convert_ext
 from conversation import AssistantTurn, ChatParseRequest
 from response_format import CHAT_FORMAT, ITINERARY_FORMAT
 from booking_links import BOOKING_LINK_POLICY
-from schedule_source import aggies_schedule_source
+from schedule_source import aggies_event_records
+from event_records import render_schedule
 from budget_gate import BUDGET_QUESTION
 from research_policy import ResearchPurpose, run_research
 
@@ -184,6 +185,30 @@ def _google_search(query: str, monetize: bool = True) -> str:
 async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
     """Answer freely, research when needed, and extract only chosen trip details."""
     started = time.monotonic()
+    rendered_schedule = []
+
+    @tool("Verified Aggies Football Schedule")
+    def verified_schedule(year: int, scope: Literal["all", "home", "away"] = "all",
+                          start_date: str = "", end_date: str = "", limit: int = 0) -> str:
+        """Read official Texas A&M football records. ISO dates filter the season;
+        next-game requests use today's start_date and limit=1. Full season uses
+        no dates and limit=0. Only use for a schedule/game-list request, not booking.
+        """
+        try:
+            if not 1900 <= year <= 2100 or not 0 <= limit <= 100:
+                raise ValueError("Unsupported year or limit")
+            start = date.fromisoformat(start_date) if start_date else None
+            end = date.fromisoformat(end_date) if end_date else None
+            if start and end and start > end:
+                raise ValueError("Invalid date range")
+            records = aggies_event_records(year)
+            display = render_schedule(records, start=start, end=end, scope=scope, limit=limit or None)
+            rendered_schedule[:] = [display]
+            return records.model_dump_json() + "\nRENDERED ANSWER:\n" + display
+        except (requests.RequestException, ValueError):
+            display = "I couldn't verify the official Texas A&M football schedule right now. Please try again shortly."
+            rendered_schedule[:] = [display]
+            return display + " Do not substitute remembered or snippet-only fixtures."
     @tool("Trip Research")
     def trip_research(query: str, purpose: ResearchPurpose) -> str:
         """Research facts or bookings. Classify shopping/prices as tickets, flights,
@@ -198,7 +223,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "You are a friendly, knowledgeable sports travel assistant. You explain "
             "options conversationally and help fans make decisions at their own pace."
         ),
-        tools=[trip_research],
+        tools=[trip_research, verified_schedule],
         llm=conversation_llm,
         max_iter=8,
         verbose=False,
@@ -313,22 +338,15 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
         "in this message but it is not yet in current_slots, save it in slot_updates "
         "and acknowledge it before researching on the next turn."
     )
-    if (requests_schedule_listing(request.message)
-            and re.search(r"Texas A&M|Aggies", request.message, re.I)
-            and re.search(r"football", request.message, re.I)):
-        years = re.findall(r"\b20\d{2}\b", request.message)
-        year = int(years[0]) if years else datetime.now(timezone.utc).year
-        try:
-            source = await asyncio.to_thread(aggies_schedule_source, year)
-            task.description += (
-                "\nVERIFIED OFFICIAL SEASON PAGE (source data, not user input):\n" + source +
-                "\nBuild the requested schedule directly from these entries. Do not add "
-                "fixtures from memory or search snippets. Flex/Early/Afternoon are "
-                "unannounced time windows: show TBD, not invented kickoff times. "
-                "No further search is needed unless this source lacks the requested information."
-            )
-        except (requests.RequestException, ValueError):
-            logger.warning("Official Aggies schedule fetch unavailable; using research fallback")
+    task.description += (
+        "\nSTRUCTURED EVENTS: For Texas A&M Aggies football schedule or next-game "
+        "requests, use Verified Aggies Football Schedule instead of general search. "
+        "Resolve team and filters from conversation context. Use the current year "
+        "unless another season is requested. Set intent=schedule when presenting "
+        "that game list. The backend will render verified records, so do not invent "
+        "or edit fixture details. For other teams, research normally and never "
+        "describe snippet-only results as structured verified records."
+    )
     task.description += (
         "\nANSWER CONTRACT: The latest message is a question/request to answer, not "
         "a completed answer to acknowledge. Put researched facts directly in reply. "
@@ -348,6 +366,8 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
         turn = AssistantTurn.model_validate(result.pydantic.model_dump())
     else:
         turn = AssistantTurn.model_validate_json(result.raw)
+    if rendered_schedule and turn.intent in {"schedule", "information"}:
+        return AssistantTurn(intent="schedule", reply=rendered_schedule[-1])
     return turn
 
 

@@ -12,6 +12,23 @@ from conversation import AssistantTurn, ChatMessage, ChatParseRequest, TripSlots
 
 
 class ConversationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_structured_schedule_output_replaces_model_rewritten_fixtures(self):
+        from event_records import EventSchedule, EventRecord
+        from datetime import date
+        records = EventSchedule(season=2026, team="Texas A&M Aggies", source_url="https://12thman.com/",
+            source_name="Texas A&M Athletics", events=[EventRecord(date=date(2026, 9, 19),
+            team="Texas A&M Aggies", opponent="Kentucky", location="College Station", home_away="Home")])
+        with patch("agents.Crew") as crew, patch("agents.aggies_event_records", return_value=records):
+            async def kickoff():
+                tool = crew.call_args.kwargs["agents"][0].tools[1]
+                tool.func(year=2026, scope="home", start_date="2026-09-18", limit=1)
+                return SimpleNamespace(pydantic=AssistantTurn(intent="information", reply="Invented fixture"))
+            crew.return_value.kickoff_async = kickoff
+            turn = await answer_trip_message(ChatParseRequest(message="When is the next Aggies football home game?"))
+        self.assertIn("Kentucky", turn.reply)
+        self.assertNotIn("Invented", turn.reply)
+        self.assertFalse(turn.build_itinerary)
+
     async def test_specific_game_questions_do_not_receive_full_season_instructions(self):
         for message in ("When is the Cowboys next home game?", "What time does that game start?",
                         "Where is it played?", "Show me that game", "What time is hotel checkout?"):
