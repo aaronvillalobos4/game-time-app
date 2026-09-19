@@ -40,7 +40,7 @@ class AssistantTurn(BaseModel):
                     "build_itinerary", "revise_itinerary", "clarification"] | None = None
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    reply: str = Field(min_length=1, max_length=8_000, description=(
+    reply: str = Field(min_length=1, max_length=64_000, description=(
         "The actual researched answer to the user's latest question, including the "
         "schedule table or requested details. Preserve those details when converting "
         "agent output to this schema. Never replace the answer with an acknowledgement "

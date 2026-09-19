@@ -12,6 +12,39 @@ from conversation import AssistantTurn, ChatMessage, ChatParseRequest, TripSlots
 
 
 class ConversationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_general_team_tool_preserves_records_and_filters(self):
+        from event_records import EventSchedule, EventRecord
+        from datetime import date
+        records = EventSchedule(season=2026, team="Dallas Cowboys", source_url="https://www.espn.com/",
+            source_name="ESPN", events=[EventRecord(date=date(2026, 9, 20),
+            team="Dallas Cowboys", opponent="Washington Commanders", location="Arlington", home_away="Home"),
+            EventRecord(date=date(2026, 9, 27), team="Dallas Cowboys", opponent="Other team",
+                        location="Other city", home_away="Away")])
+        with patch("agents.Crew") as crew, patch("agents.team_event_records", return_value=records) as source:
+            async def kickoff():
+                schedule_tool = crew.call_args.kwargs["agents"][0].tools[2]
+                schedule_tool.func(league="nfl", team="Dallas Cowboys", year=2026,
+                                   scope="home", start_date="2026-09-18", limit=1)
+                return SimpleNamespace(pydantic=AssistantTurn(intent="schedule", reply="Invented fixture"))
+            crew.return_value.kickoff_async = kickoff
+            turn = await answer_trip_message(ChatParseRequest(message="When is the Cowboys next home game?"))
+        source.assert_called_once_with("nfl", "Dallas Cowboys", 2026, "all")
+        self.assertIn("Washington Commanders", turn.reply)
+        self.assertNotIn("Other team", turn.reply)
+        self.assertNotIn("Invented", turn.reply)
+        self.assertFalse(turn.build_itinerary)
+
+    async def test_general_team_tool_failure_is_not_rewritten(self):
+        from requests import Timeout
+        with patch("agents.Crew") as crew, patch("agents.team_event_records", side_effect=Timeout):
+            async def kickoff():
+                crew.call_args.kwargs["agents"][0].tools[2].func(league="nfl", team="Cowboys", year=2026)
+                return SimpleNamespace(pydantic=AssistantTurn(intent="schedule", reply="Invented game"))
+            crew.return_value.kickoff_async = kickoff
+            turn = await answer_trip_message(ChatParseRequest(message="Show the Cowboys schedule"))
+        self.assertIn("couldn't verify", turn.reply)
+        self.assertNotIn("Invented", turn.reply)
+
     async def test_structured_schedule_output_replaces_model_rewritten_fixtures(self):
         from event_records import EventSchedule, EventRecord
         from datetime import date

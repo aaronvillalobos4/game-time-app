@@ -14,11 +14,15 @@ class EventRecord(BaseModel):
     home_away: Literal["Home", "Away", "Neutral", "Unconfirmed"]
     kickoff: str | None = None
     time_window: str | None = None
+    status: str | None = None
 
 
 class EventSchedule(BaseModel):
     season: int
     team: str
+    sport: str = "football"
+    season_label: str | None = None
+    time_note: str = "Times are shown as published; timezone is not inferred."
     source_url: str
     source_name: str
     retrieved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -32,7 +36,7 @@ def render_schedule(schedule, *, start=None, end=None, scope="all", limit=None):
               and (scope == "all" or e.home_away.lower() == scope)]
     if limit is not None:
         events = events[:limit]
-    heading = f"{schedule.team} — {schedule.season} football schedule"
+    heading = f"{schedule.team} — {schedule.season_label or schedule.season} {schedule.sport} schedule"
     filters = []
     if scope != "all": filters.append(f"{scope} games")
     if start: filters.append(f"from {start.isoformat()}")
@@ -43,13 +47,15 @@ def render_schedule(schedule, *, start=None, end=None, scope="all", limit=None):
         return heading + "\n\nNo published games match these filters."
     def cell(value):
         return str(value).replace("|", "\\|").replace("\n", " ")
-    rows = [heading, "", "| Date | Opponent | Home/Away | Location / venue | Kickoff |",
+    rows = [heading, "", "| Date | Opponent | Home/Away | Location / venue | Time |",
             "|---|---|---|---|---|"]
     for event in events:
         time = event.kickoff or (f"TBD ({event.time_window} window)" if event.time_window else "TBD")
+        if event.status:
+            time += f" ({event.status})"
         place = event.location + (f" / {event.venue}" if event.venue else "")
         rows.append("| " + " | ".join(map(cell, [event.date.isoformat(), event.opponent,
                     event.home_away, place, time])) + " |")
-    rows += ["", f"Source: {schedule.source_name}. Times are shown as published; timezone is not inferred. "
-             "TBD means the exact kickoff is unconfirmed. Dates before today are completed/past fixtures."]
+    rows += ["", f"Source: {schedule.source_name}. {schedule.time_note} "
+             "TBD means the exact start time is unconfirmed. Only published fixtures are included; schedules may change."]
     return "\n".join(rows)

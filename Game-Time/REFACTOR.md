@@ -30,6 +30,37 @@ filters and counts. Schedule-intent answers use deterministic Markdown rendering
 of the tool's records, not the LLM's rewritten table. Exact timezones are not guessed.
 
 Live full-season and next-game tests should accompany changes to this adapter.
-This adapter covers Texas A&M football only. Other teams still use general research;
-they are not silently marked as structured/verified. Additional source adapters,
-cross-source conflict checks and structured itinerary storage remain future work.
+The official adapter remains preferred for Texas A&M football.
+
+## Expanded team schedules
+
+`espn_schedule.py` adds ESPN team-directory resolution and structured schedules for
+NFL, NBA, WNBA, MLB, NHL and college football. Team names and abbreviations must
+match a unique directory entry; ambiguous names request clarification. The tool
+accepts a season, home/away filter, date bounds, optional count and season phase.
+By default it fetches all three published phases concurrently and renders every
+returned fixture. Future playoff opponents and unpublished games are not invented.
+NBA/NHL season numbers use the ending year (2026-27 = 2027).
+
+Every populated response validates the requested team, each fixture's season and
+phase, participants and timestamp. Event IDs preserve doubleheaders and identify
+conflicting duplicates. Missing venues and start times remain TBD. Confirmed dates
+and times use America/Chicago with DST; untimed placeholder dates are not shifted.
+This is a display timezone, not an inferred venue timezone. Schedules carry source
+provenance and retrieval time; no schedule database or new credentials are needed.
+
+ESPN's public feed is an external dependency, not a guaranteed service contract.
+Unavailable/malformed responses fail with a verification message; empty feeds say
+no published fixtures. Other leagues still use general research. This validates
+provider records, not agreement between multiple independent sources. Team tools
+are intended for game lists/next-game questions, while other details remain
+conversational. Model routing and season/filter selection still need ongoing live
+conversation evaluation.
+
+Assistant replies allow 64,000 characters so long baseball schedules are not cut
+off. Existing browser history limits are unchanged; tools can refetch for follow-up
+questions. No affiliate or budget-gate behavior changes.
+
+Validation: backend regression suite plus live adapter smoke checks for Cowboys,
+Mavericks, Wings, Rangers, Stars and Longhorns. Cross-source conflict checks and
+structured itinerary storage remain future work.

@@ -19,6 +19,7 @@ from conversation import AssistantTurn, ChatParseRequest
 from response_format import CHAT_FORMAT, ITINERARY_FORMAT
 from booking_links import BOOKING_LINK_POLICY
 from schedule_source import aggies_event_records
+from espn_schedule import League, TeamSelectionError, team_event_records
 from event_records import render_schedule
 from trip_clock import calendar_context
 from budget_gate import BUDGET_QUESTION
@@ -210,6 +211,33 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             display = "I couldn't verify the official Texas A&M football schedule right now. Please try again shortly."
             rendered_schedule[:] = [display]
             return display + " Do not substitute remembered or snippet-only fixtures."
+    @tool("Verified Team Schedule")
+    def team_schedule(league: League, team: str, year: int,
+                      scope: Literal["all", "home", "away"] = "all",
+                      start_date: str = "", end_date: str = "", limit: int = 0,
+                      phase: Literal["all", "preseason", "regular", "postseason"] = "all") -> str:
+        """Read ESPN team records for NFL, NBA, WNBA, MLB, NHL or college football.
+        Use full team name or unambiguous abbreviation. NBA/NHL year is season END
+        year (2026-27 = 2027). All published phases and games are returned by default.
+        Next game: today's ISO start_date, limit=1. Never use this for bookings.
+        """
+        try:
+            if not 0 <= limit <= 1000:
+                raise ValueError("Unsupported limit")
+            start = date.fromisoformat(start_date) if start_date else None
+            end = date.fromisoformat(end_date) if end_date else None
+            if start and end and start > end:
+                raise ValueError("Invalid date range")
+            records = team_event_records(league, team, year, phase)
+            display = (render_schedule(records, start=start, end=end, scope=scope, limit=limit or None)
+                       if records else f"ESPN has no published {phase}-phase schedule for {team} in {league}, season {year}. I can't confirm game dates yet.")
+        except TeamSelectionError as exc:
+            display = str(exc)
+        except (requests.RequestException, ValueError, KeyError, TypeError, IndexError):
+            display = "I couldn't verify that team's requested season with ESPN right now. Please try again shortly."
+        rendered_schedule[:] = [display]
+        return display + "\nUse the rendered answer as supplied; do not invent or substitute fixtures."
+
     @tool("Trip Research")
     def trip_research(query: str, purpose: ResearchPurpose) -> str:
         """Research facts or bookings. Classify shopping/prices as tickets, flights,
@@ -224,7 +252,7 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "You are a friendly, knowledgeable sports travel assistant. You explain "
             "options conversationally and help fans make decisions at their own pace."
         ),
-        tools=[trip_research, verified_schedule],
+        tools=[trip_research, verified_schedule, team_schedule],
         llm=conversation_llm,
         max_iter=8,
         verbose=False,
@@ -345,8 +373,20 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
         "Resolve team and filters from conversation context. Use the current year "
         "unless another season is requested. Set intent=schedule when presenting "
         "that game list. The backend will render verified records, so do not invent "
-        "or edit fixture details. For other teams, research normally and never "
-        "describe snippet-only results as structured verified records."
+        "or edit fixture details. For other NFL, NBA, WNBA, MLB, NHL and college "
+        "football teams, use Verified Team Schedule. Ask for the league if ambiguous. "
+        "NBA and NHL seasons use their END year: fall 2026 games are season 2027. "
+        "For next-game requests around season boundaries, check the following season "
+        "if the first has no upcoming games. Full schedules use phase=all, limit=0 "
+        "and no date filters unless the user specifies them. Next home game uses "
+        "scope=home, today's start_date and limit=1; month requests use date bounds. "
+        "Do not call schedule tools for general venue or game-detail explanations "
+        "unless needed to establish the specific fixture. Set intent=schedule only "
+        "when the requested answer is a game list or next game. Other questions "
+        "should be answered conversationally with only the requested facts. "
+        "For unsupported leagues, research normally and never describe snippets as "
+        "structured verified records. Never replace a failed structured lookup with "
+        "remembered fixtures."
     )
     task.description += (
         "\nANSWER CONTRACT: The latest message is a question/request to answer, not "
