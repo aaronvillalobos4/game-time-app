@@ -8,6 +8,7 @@ from threading import Lock
 from urllib.parse import urlsplit
 
 import requests
+from booking_locale import english_booking_url
 
 logger = logging.getLogger(__name__)
 ENDPOINT = "https://api.travelpayouts.com/links/v1/create"
@@ -86,6 +87,12 @@ def convert_flight_links(urls):
 
 
 def _convert_links(urls, eligible, sub_id):
+    originals = {url: english_booking_url(url) for url in urls}
+    converted = _convert_normalized_links(originals.values(), eligible, sub_id)
+    return {url: converted[destination] for url, destination in originals.items() if destination in converted}
+
+
+def _convert_normalized_links(urls, eligible, sub_id):
     """Batch supported originals; fall back unchanged on missing access or errors."""
     config = configuration()
     converted = {}
@@ -136,6 +143,7 @@ def _convert_links(urls, eligible, sub_id):
 def monetize_hotel_markdown(text):
     # Convert Markdown destinations, including reference-style definitions and bare URLs.
     pattern = re.compile(r'https://[^\s<>\[\]()"`]+')
+    text = pattern.sub(lambda match: english_booking_url(match.group(0)), text)
     hotel_links = convert_hotel_links(pattern.findall(text))
     links = dict(hotel_links)
     links.update(convert_flight_links(pattern.findall(text)))

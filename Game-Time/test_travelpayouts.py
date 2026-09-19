@@ -56,7 +56,7 @@ class TravelpayoutsTests(unittest.TestCase):
         return response
 
     def test_batching_auth_and_caching(self):
-        urls = [f"https://www.klook.com/hotels/example-{i}.html?checkin=2026-10-10" for i in range(11)]
+        urls = [f"https://www.klook.com/en-US/hotels/example-{i}.html?checkin=2026-10-10" for i in range(11)]
         def convert(*args, **kwargs):
             return self.response([{"url": item["url"], "code": "success", "partner_url": f"https://klook.tp.st/{urls.index(item['url'])}"} for item in kwargs["json"]["links"]])
         with patch("travelpayouts.requests.post", side_effect=convert) as post:
@@ -69,7 +69,7 @@ class TravelpayoutsTests(unittest.TestCase):
             self.assertEqual(post.call_count, 2)
 
     def test_partial_failures_preserve_original_destinations(self):
-        a, b = "https://klook.com/hotel/a.html", "https://kkday.com/en/hotel/product/123"
+        a, b = "https://klook.com/en-US/hotel/a.html", "https://kkday.com/en/hotel/product/123"
         rows = [{"url": a, "code": "success", "partner_url": "https://klook.tp.st/abc"},
                 {"url": b, "code": "failed", "partner_url": ""}]
         with patch("travelpayouts.requests.post", return_value=self.response(rows)), self.assertLogs("travelpayouts", level="WARNING"):
@@ -79,15 +79,15 @@ class TravelpayoutsTests(unittest.TestCase):
         self.assertIn("may earn a commission", result)
 
     def test_timeout_does_not_break_answer_or_inject_old_expedia_link(self):
-        reply = "Hotel [Book](https://klook.com/hotel/a.html)"
+        reply = "Hotel [Book](https://klook.com/en-US/hotel/a.html)"
         with patch("travelpayouts.requests.post", side_effect=requests.Timeout), self.assertLogs("travelpayouts", level="WARNING"):
             self.assertEqual(with_hotel_booking_link(reply, True), reply.replace("[Book]", "[Klook]"))
         self.assertNotIn("https://expedia.com/affiliate/legacy", hotel_booking_policy())
 
     def test_wrong_or_unsafe_response_not_used(self):
-        url = "https://klook.com/hotel/a.html"
+        url = "https://klook.com/en-US/hotel/a.html"
         for row in ({"url": url, "code": "success", "partner_url": "javascript:alert(1)"},
-                    {"url": "https://klook.com/hotel/other.html", "code": "success", "partner_url": "https://klook.tp.st/abc"}):
+                    {"url": "https://klook.com/en-US/hotel/other.html", "code": "success", "partner_url": "https://klook.tp.st/abc"}):
             tp._cache.clear()
             with patch("travelpayouts.requests.post", return_value=self.response([row])), self.assertLogs("travelpayouts", level="WARNING"):
                 self.assertEqual(tp.convert_hotel_links([url]), {})
@@ -102,7 +102,7 @@ class TravelpayoutsTests(unittest.TestCase):
 
     def test_missing_configuration_skips_api(self):
         with patch.dict(os.environ, {"TRAVELPAYOUTS_API_TOKEN": ""}), patch("travelpayouts.requests.post") as post:
-            self.assertEqual(tp.convert_hotel_links(["https://klook.com/hotel/a.html"]), {})
+            self.assertEqual(tp.convert_hotel_links(["https://klook.com/en-US/hotel/a.html"]), {})
             post.assert_not_called()
 
     def test_other_hotel_providers_never_sent_to_api(self):
@@ -119,12 +119,12 @@ class TravelpayoutsTests(unittest.TestCase):
 
     def test_missing_credentials_never_present_raw_hotel_booking_action(self):
         with patch.dict(os.environ, {"TRAVELPAYOUTS_API_TOKEN": ""}):
-            result = with_hotel_booking_link("[Book hotel](https://klook.com/hotels/example)")
-        self.assertEqual(result, "[Klook](https://klook.com/hotels/example)")
+            result = with_hotel_booking_link("[Book hotel](https://klook.com/en-US/hotels/example)")
+        self.assertEqual(result, "[Klook](https://klook.com/en-US/hotels/example)")
 
     def test_preferred_accommodation_links_convert_in_chat(self):
-        urls = ["https://www.klook.com/hotels/detail/123-example/",
-                "https://m.kkday.com/en-au/hotel/product/299700"]
+        urls = ["https://www.klook.com/en-US/hotels/detail/123-example/",
+                "https://m.kkday.com/en/hotel/product/299700"]
         rows = [{"url": url, "code": "success", "partner_url": f"https://example.tp.st/{i}"}
                 for i, url in enumerate(urls)]
         with patch("travelpayouts.requests.post", return_value=self.response(rows)) as post:
@@ -139,5 +139,5 @@ class TravelpayoutsTests(unittest.TestCase):
                     "https://www.kkday.com/en/product/123-city-tour",
                     "https://klook.com.evil.test/hotels/",
                     "https://user@kkday.com/en/hotel/product/123",
-                    "http://klook.com/hotels/"):
+                    "http://klook.com/en-US/hotels/"):
             self.assertFalse(tp.is_hotel_url(url), url)

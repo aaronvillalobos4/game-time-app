@@ -58,6 +58,10 @@ def flight_booking_policy():
 def hotel_booking_policy():
     return (
         "HOTEL BOOKING LINKS: Prioritize successful Travelpayouts API links for Klook or "
+        "KKday. Prefer verified English storefront pages (Klook /en-US/, KKday /en/) "
+        "and English pages for other booking providers when available. The backend "
+        "sets supported destination locales before tracking; never edit supplied "
+        "affiliate short links or invent language parameters. Prioritize Klook or "
         "KKday as hotel booking actions, including budget tables "
         "and revised itineraries. Never invent tracking URLs or reuse other hotel "
         "affiliate links from history. Search site:klook.com and site:kkday.com "
