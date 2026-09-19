@@ -9,6 +9,31 @@ from test_itinerary import plan, INPUTS
 
 
 class IntakeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_yes_no_answers_are_saved_without_model_classification(self):
+        slots = TripSlots(event='Game', date='2026-10-10', trip_requested=True)
+        for answer, field, expected, following in [
+            ('No', 'needs_flight', False, 'hotel'),
+            ('Yes please', 'needs_hotel', True, 'budget'),
+        ]:
+            with patch('app.answer_trip_message') as model:
+                result = await parse_intent(ChatParseRequest(message=answer, current_slots=slots,
+                    history=[ChatMessage(role='assistant', content=next_question(slots))]))
+            model.assert_not_called()
+            self.assertIs(result['slots'][field], expected)
+            self.assertIn(following, result['follow_up_question'])
+            slots = TripSlots.model_validate(result['slots'])
+
+    async def test_ambiguous_or_informational_reply_still_uses_assistant(self):
+        slots = TripSlots(event='Game', date='2026-10-10', trip_requested=True)
+        for message, question in [('What do flights cost?', 'Will you need flights?'),
+                                  ('yes', 'Do you need flights and a hotel?'),
+                                  ('No, but my friend needs a flight', 'Will you need flights?')]:
+            with patch('app.answer_trip_message', new_callable=AsyncMock,
+                       return_value=AssistantTurn(intent='information', reply='Answer')) as model:
+                await parse_intent(ChatParseRequest(message=message, current_slots=slots,
+                    history=[ChatMessage(role='assistant', content=question)]))
+            model.assert_awaited_once()
+
     async def test_sample_consent_completes_intake(self):
         slots = TripSlots(event='Game', date='2026-10-10', needs_flight=False,
                           needs_hotel=False, trip_requested=True)

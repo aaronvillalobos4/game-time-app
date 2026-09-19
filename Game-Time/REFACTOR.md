@@ -112,3 +112,40 @@ endpoint. Deploy frontend and backend together: older browser builds must refres
 before generating itineraries. No-hotel plans omit hotel research, options and
 costs, including on revisions. Research cannot guarantee inventory or matching
 booking links; missing verified links remain explicitly unavailable.
+
+## Intake and generation reliability
+
+Unambiguous yes/no answers to the immediately preceding flight/hotel question are
+saved directly, bypassing model intent classification that can discard choices
+when labeled clarification. Ambiguous replies, combined questions and itinerary
+revisions still use the conversational assistant. The next question is computed
+from saved slots.
+
+Both itinerary composition and revision have a validation guardrail with at most
+two retries of the final task. Validation feedback identifies schema errors without
+relaxing cost or selection rules. Typed output, JSON dictionaries and fenced JSON
+are validated before rendering. Local regression tests cover these paths; the
+production error's exact cause still requires a live trace or server logs.
+
+The subsequent authorized live test reproduced LengthFinishReasonError with zero
+completion tokens. Both model clients previously left output limits unspecified;
+they now explicitly request max_completion_tokens=8192. Local request preparation
+confirms that parameter is sent. The stream distinguishes this failure from other
+errors. This mitigation has not yet had a second live run; zero-token termination
+may also reflect upstream service behavior rather than a normal truncated answer.
+
+A second authorized live test with the explicit 8192-token allowance also failed
+with zero completion tokens and LengthFinishReasonError. The allowance change did
+not resolve the live failure. Do not treat local regression success as evidence
+that live generation is restored; endpoint/provider diagnostics remain necessary.
+
+Follow-up diagnostics isolated the failure to the itinerary schema: a plain model
+request and a simple structured schema succeeded, while a minimal ItineraryPlan
+request failed with zero output tokens. Decimal price fields emitted a string
+regex containing negative lookahead. Advertising those fields as nullable JSON
+numbers with WithJsonSchema removed the failure, while preserving Decimal runtime
+validation and arithmetic. The same minimal request then succeeded, followed by a
+successful full synthetic itinerary run (2,905 characters, no hotel). That run
+recovered from an intermediate missing-price-bound validation error. Console
+printing of emoji failed under Windows cp1252 after generation completed; the
+itinerary itself returned successfully. No deployment was performed.

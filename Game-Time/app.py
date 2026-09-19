@@ -9,9 +9,10 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
+from openai import LengthFinishReasonError
 
 from agents import TravelCrew, answer_trip_message, evaluate_user_intent
-from conversation import ChatParseRequest, TripSlots, merge_slots, next_question
+from conversation import ChatParseRequest, TripSlots, AssistantTurn, merge_slots, next_question, intake_answer
 from affiliate_links import with_hotel_booking_link
 from budget_gate import budget_from_message
 from voice import router as voice_router
@@ -78,7 +79,11 @@ async def parse_intent(request: ChatParseRequest) -> dict[str, object]:
     if amount is not None:
         request = request.model_copy(update={"current_slots": request.current_slots.model_copy(update={"budget": amount})})
     try:
-        turn = await asyncio.wait_for(answer_trip_message(request), timeout=90)
+        direct_answer = intake_answer(request)
+        if direct_answer is not None:
+            turn = AssistantTurn(intent="trip_update", reply="Saved your preference.", slot_updates=direct_answer)
+        else:
+            turn = await asyncio.wait_for(answer_trip_message(request), timeout=90)
         slots = merge_slots(request.current_slots, turn.slot_updates)
     except Exception:
         logger.exception("Sports trip assistant failed")
@@ -142,6 +147,11 @@ async def generate_itinerary_stream(request: ItineraryRequest) -> StreamingRespo
         )
         try:
             result = await TravelCrew(inputs).run()
+        except LengthFinishReasonError:
+            logger.exception("Itinerary model response hit its output limit")
+            yield _sse_event("error", "The AI service stopped before completing your itinerary. "
+                             "Your trip details are still saved. Please try building it again.")
+            return
         except Exception:
             logger.exception("Itinerary crew failed")
             yield _sse_event(

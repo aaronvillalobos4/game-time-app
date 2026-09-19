@@ -1,6 +1,7 @@
 """Validated conversation state shared by the API and sports-trip assistant."""
 
 from typing import Literal
+import re
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from budget_gate import BUDGET_QUESTION
@@ -93,3 +94,33 @@ def next_question(slots: TripSlots) -> str | None:
     if slots.budget is None:
         return BUDGET_QUESTION
     return None
+
+
+def intake_answer(request: ChatParseRequest) -> TripSlots | None:
+    """Handle only unambiguous answers to our last flight/hotel question."""
+    if request.current_itinerary or not request.history:
+        return None
+    last = request.history[-1]
+    if last.role != "assistant":
+        return None
+    questions = re.findall(r"[^.!?]*\?", last.content.lower())
+    if len(questions) != 1:
+        return None
+    question = questions[0]
+    flight = bool(re.search(r"\b(?:flights?|flying)\b", question))
+    hotel = bool(re.search(r"\b(?:hotel|lodging)\b", question))
+    if flight == hotel or not re.search(r"\b(?:need|want|require)\b", question):
+        return None
+    text = request.message.strip().lower().rstrip('.!')
+    value = None
+    if re.fullmatch(r"(?:yes(?: please)?|yeah|yep|sure|i do|no(?: thanks| thank you)?|nope|i don['’]t)", text):
+        value = text not in {"no", "no thanks", "no thank you", "nope", "i don't", "i don’t"}
+    elif flight and re.fullmatch(r"(?:no flights?|i(?: am|'m|’m) driving|i(?: am|'m|’m) local)", text):
+        value = False
+    elif hotel and re.fullmatch(r"(?:no hotel|i don['’]t need (?:a )?hotel)", text):
+        value = False
+    elif re.fullmatch(r"(?:yes[, ]+)?i (?:need|want) " + (r"(?:a )?flights?" if flight else r"(?:a )?hotel"), text):
+        value = True
+    if value is None:
+        return None
+    return TripSlots(**{"needs_flight" if flight else "needs_hotel": value, "trip_requested": True})

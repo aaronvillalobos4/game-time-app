@@ -18,7 +18,7 @@ from affiliate_links import (affiliate_url_for,
 from travelpayouts import convert_hotel_links, convert_flight_links, convert_extra_links
 from conversation import AssistantTurn, ChatParseRequest, next_question
 from response_format import CHAT_FORMAT
-from itinerary import ItineraryPlan, STRUCTURED_ITINERARY, render_itinerary
+from itinerary import ItineraryPlan, STRUCTURED_ITINERARY, render_itinerary, parse_plan_output, itinerary_guardrail
 from booking_links import BOOKING_LINK_POLICY
 from schedule_source import aggies_event_records
 from espn_schedule import League, TeamSelectionError, team_event_records
@@ -72,11 +72,13 @@ RESET_PATTERN = re.compile(
 crew_llm = LLM(
     model=os.getenv("CREWAI_MODEL", "gpt-4o"),
     temperature=0.7,
+    max_completion_tokens=8192,
 )
 
 conversation_llm = LLM(
     model=os.getenv("CREWAI_MODEL", "gpt-4o"),
     temperature=0.2,
+    max_completion_tokens=8192,
 )
 
 
@@ -642,6 +644,8 @@ class TravelCrew:
             agent=coordinator_agent,
             context=research_tasks,
             output_pydantic=ItineraryPlan,
+            guardrail=itinerary_guardrail,
+            guardrail_max_retries=2,
         )
 
         crew = Crew(
@@ -654,9 +658,7 @@ class TravelCrew:
         return self._render_result(result)
 
     def _render_result(self, result) -> str:
-        plan = getattr(result, "pydantic", None)
-        if not isinstance(plan, ItineraryPlan):
-            plan = ItineraryPlan.model_validate_json(result.raw)
+        plan = parse_plan_output(result)
         return with_hotel_booking_link(render_itinerary(plan, self.inputs))
 
     async def _revise(self) -> str:
@@ -699,6 +701,8 @@ class TravelCrew:
             expected_output="Complete revised ItineraryPlan with changes, sourced costs and updated selected options.",
             agent=editor,
             output_pydantic=ItineraryPlan,
+            guardrail=itinerary_guardrail,
+            guardrail_max_retries=2,
         )
         result = await Crew(agents=[editor], tasks=[task], verbose=False).kickoff_async()
         return self._render_result(result)

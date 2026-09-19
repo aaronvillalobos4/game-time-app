@@ -1,8 +1,15 @@
 """Structured planning output with server-calculated USD trip totals."""
 from decimal import Decimal
-from typing import Literal
+import json
+import re
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator, WithJsonSchema
+from pydantic import ValidationError
+
+# Decimal's generated string regex contains lookahead, which some structured-output
+# decoders cannot handle. Request JSON numbers; retain Decimal validation/arithmetic.
+Price = Annotated[Decimal, WithJsonSchema({"type": "number", "minimum": 0, "maximum": 1000000})]
 
 
 class CostItem(BaseModel):
@@ -11,8 +18,8 @@ class CostItem(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     basis: str = Field(min_length=1, max_length=600, description="Counts, dates, per-unit basis, taxes and fee assumptions")
     quantity: int = Field(default=1, ge=1, le=10000)
-    unit_low: Decimal | None = Field(default=None, ge=0, le=1000000, decimal_places=2, allow_inf_nan=False)
-    unit_high: Decimal | None = Field(default=None, ge=0, le=1000000, decimal_places=2, allow_inf_nan=False)
+    unit_low: Price | None = Field(default=None, ge=0, le=1000000, decimal_places=2, allow_inf_nan=False)
+    unit_high: Price | None = Field(default=None, ge=0, le=1000000, decimal_places=2, allow_inf_nan=False)
     currency: str = Field(default="USD", pattern=r"^[A-Z]{3}$")
     selected: bool = True
     optional: bool = False
@@ -87,6 +94,34 @@ For revisions return the entire updated plan with a short changes list. Do not
 include calculated totals copied from the previous itinerary. Text fields are
 plain descriptions, not independently formatted tables or budget calculations.
 """
+
+
+def parse_plan_output(output):
+    """Accept CrewAI's typed, JSON-dict or fenced JSON output, validating all paths."""
+    typed = getattr(output, "pydantic", None)
+    if isinstance(typed, ItineraryPlan):
+        return ItineraryPlan.model_validate(typed.model_dump())
+    data = getattr(output, "json_dict", None)
+    if not isinstance(data, dict):
+        raw = getattr(output, "raw", "")
+        raw = re.sub(r"^\s*```(?:json)?\s*|\s*```\s*$", "", raw, flags=re.I)
+        return ItineraryPlan.model_validate_json(raw)
+    return ItineraryPlan.model_validate(data)
+
+
+def itinerary_guardrail(output):
+    """Retry only the final composition task on malformed or inconsistent output."""
+    try:
+        plan = parse_plan_output(output)
+        return True, plan.model_dump_json()
+    except ValidationError as exc:
+        errors = [{"field": ".".join(map(str, e["loc"])), "error": e["msg"]}
+                  for e in exc.errors(include_input=False, include_url=False)][:12]
+        return False, ("Return a complete valid ItineraryPlan JSON object. Repair these validation errors: "
+                       + json.dumps(errors) + ". Preserve researched facts and exact links. "
+                       "Unknown prices require BOTH bounds null. Optional ideas require selected=false. "
+                       "Only one selected ticket/hotel/flight option; others are alternatives. "
+                       "Never invent prices to satisfy validation.")
 
 
 def cell(value):
