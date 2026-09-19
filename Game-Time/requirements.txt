@@ -4,6 +4,7 @@ pydantic
 python-dotenv
 requests
 beautifulsoup4
+tzdata
 crewai
 openai
 langchain-openai
