@@ -64,3 +64,34 @@ questions. No affiliate or budget-gate behavior changes.
 Validation: backend regression suite plus live adapter smoke checks for Cowboys,
 Mavericks, Wings, Rangers, Stars and Longhorns. Cross-source conflict checks and
 structured itinerary storage remain future work.
+
+## Structured itineraries and calculated budgets
+
+Both initial planning and revisions now request `ItineraryPlan` from CrewAI. The
+backend validates the result and renders Markdown through `itinerary.py`, then
+applies the existing affiliate and outbound-link processing. The streaming API
+and frontend chat contract are unchanged. Invalid structured output fails through
+the existing stream error path instead of displaying unchecked raw model text.
+
+Costs have category, selection/optional flags, quantity, per-unit low/high prices,
+currency, basis, evidence and provider booking URL. Decimal arithmetic computes
+selected totals and uses upper estimates for budget comparisons. Alternative
+hotels/tickets/flights are displayed but excluded from totals; multiple selected
+options in these categories fail validation. Local trips omit flights. Missing
+essential categories, missing prices and non-USD costs produce a known-cost USD
+subtotal, not a claim of budget fit. The current budget currency is USD; no
+automatic exchange-rate conversion is performed.
+
+Optional paid extras are rendered only when their combined upper estimates fit
+after all selected essentials with some budget remaining. Otherwise only supplied
+zero-cost ideas are eligible. Selected extras count once in the core plan. Budget
+math is deterministic; research accuracy, correct quantities/selection, timeline
+quality and whether fees are actually included still depend on supplied evidence
+and model extraction. This is not real-time booking inventory or price verification.
+
+Structured plans are transient during generation; no new database is introduced.
+Revisions still receive the existing Markdown/history and extract a fresh complete
+plan. Persisting versioned structured plans is a separate future phase. Tests cover
+build/revision wiring, ranges, quantities, unknown costs, currency, alternatives,
+extras, malformed output and nonfinite budgets. No paid live-model evaluation was
+run for this phase.

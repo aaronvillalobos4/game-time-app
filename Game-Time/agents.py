@@ -6,6 +6,7 @@ import json
 import logging
 import time
 import asyncio
+import math
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 import requests
@@ -16,7 +17,8 @@ from affiliate_links import (affiliate_url_for,
                              with_hotel_booking_link, hotel_booking_policy, flight_booking_policy, trip_extras_policy)
 from travelpayouts import convert_hotel_links, convert_flight_links, convert_extra_links
 from conversation import AssistantTurn, ChatParseRequest
-from response_format import CHAT_FORMAT, ITINERARY_FORMAT
+from response_format import CHAT_FORMAT
+from itinerary import ItineraryPlan, STRUCTURED_ITINERARY, render_itinerary
 from booking_links import BOOKING_LINK_POLICY
 from schedule_source import aggies_event_records
 from espn_schedule import League, TeamSelectionError, team_event_records
@@ -487,7 +489,7 @@ class TravelCrew:
         budget = self.inputs["budget"]
         if isinstance(budget, bool) or not isinstance(budget, (int, float)):
             raise ValueError("Trip budget must be a number.")
-        if budget <= 0:
+        if not math.isfinite(budget) or budget <= 0:
             raise ValueError("Trip budget must be greater than zero.")
 
     async def run(self) -> str:
@@ -598,16 +600,17 @@ class TravelCrew:
                 "budget, say so and identify the shortfall. Include optional local "
                 "dinner/activity ideas from the supplied research only as the "
                 "remaining budget allows, following the extras rules below. "
-                + ITINERARY_FORMAT
+                + STRUCTURED_ITINERARY
                 + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy()
                 + BOOKING_LINK_POLICY
             ),
             expected_output=(
-                "A polished Markdown itinerary with a schedule, budget breakdown, "
-                "estimated total, assumptions, and source booking links."
+                "A complete ItineraryPlan with sourced per-unit cost bounds, selected "
+                "options, alternatives, hourly steps, assumptions and exact booking links."
             ),
             agent=coordinator_agent,
             context=research_tasks,
+            output_pydantic=ItineraryPlan,
         )
 
         crew = Crew(
@@ -617,7 +620,13 @@ class TravelCrew:
             verbose=False,
         )
         result = await crew.kickoff_async()
-        return with_hotel_booking_link(str(result.raw) if hasattr(result, "raw") else str(result))
+        return self._render_result(result)
+
+    def _render_result(self, result) -> str:
+        plan = getattr(result, "pydantic", None)
+        if not isinstance(plan, ItineraryPlan):
+            plan = ItineraryPlan.model_validate_json(result.raw)
+        return with_hotel_booking_link(render_itinerary(plan, self.inputs))
 
     async def _revise(self) -> str:
         """Revise the existing plan without discarding unrelated user choices."""
@@ -647,14 +656,15 @@ class TravelCrew:
                 "If the user chooses a previously optional extra, include its cost "
                 "in the selected plan once, not again as an optional allowance. "
                 "Respect requests to remove or skip extras. Start with "
-                "a short 'What changed' summary, then return the FULL revised itinerary "
+                "a short changes list, then return the FULL revised itinerary "
                 "using the format below, not just a patch or advice. Never claim a "
                 "reservation was changed or booked. "
-                + ITINERARY_FORMAT + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy() + BOOKING_LINK_POLICY + "\nTrip and revision data:\n"
+                + STRUCTURED_ITINERARY + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy() + BOOKING_LINK_POLICY + "\nTrip and revision data:\n"
                 + json.dumps(self.inputs, ensure_ascii=False)
             ),
-            expected_output="Complete revised Markdown itinerary with changed details, sources, and updated totals.",
+            expected_output="Complete revised ItineraryPlan with changes, sourced costs and updated selected options.",
             agent=editor,
+            output_pydantic=ItineraryPlan,
         )
         result = await Crew(agents=[editor], tasks=[task], verbose=False).kickoff_async()
-        return with_hotel_booking_link(str(result.raw) if hasattr(result, "raw") else str(result))
+        return self._render_result(result)
