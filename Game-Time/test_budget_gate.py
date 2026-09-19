@@ -15,13 +15,13 @@ class BudgetGateTests(unittest.IsolatedAsyncioTestCase):
                         "Build my itinerary", "Show ticket prices"):
             self.assertTrue(needs_budget(message))
 
-    async def test_booking_research_waits_without_calling_agent(self):
-        for message in ("Find hotels in Dallas", "Find flights to Dallas", "Show ticket prices", "Build my itinerary"):
-            with patch('app.answer_trip_message', new_callable=AsyncMock) as agent:
-                result = await parse_intent(ChatParseRequest(message=message))
-            agent.assert_not_awaited()
-            self.assertEqual(result['follow_up_question'], BUDGET_QUESTION)
-            self.assertIsNone(result['slots']['budget'])
+    async def test_budgetless_request_reaches_context_aware_assistant(self):
+        with patch('app.answer_trip_message', new_callable=AsyncMock,
+                   return_value=AssistantTurn(intent='booking_research', reply=BUDGET_QUESTION)) as agent:
+            result = await parse_intent(ChatParseRequest(message='Find hotels in Dallas'))
+        agent.assert_awaited_once()
+        self.assertEqual(result['follow_up_question'], BUDGET_QUESTION)
+        self.assertIsNone(result['slots']['budget'])
 
     async def test_sample_consent_is_saved_and_disclosed(self):
         request = ChatParseRequest(message='Yes please', history=[ChatMessage(role='assistant', content=BUDGET_QUESTION)])

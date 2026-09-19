@@ -36,6 +36,8 @@ class ChatParseRequest(BaseModel):
 
 
 class AssistantTurn(BaseModel):
+    intent: Literal["information", "schedule", "booking_research", "trip_update",
+                    "build_itinerary", "revise_itinerary", "clarification"] | None = None
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     reply: str = Field(min_length=1, max_length=8_000, description=(
@@ -46,6 +48,15 @@ class AssistantTurn(BaseModel):
     slot_updates: TripSlots = Field(default_factory=TripSlots)
     build_itinerary: bool = False
     suggests_hotels: bool = False
+
+    @model_validator(mode="after")
+    def enforce_informational_turn(self):
+        if self.intent in {"information", "schedule", "clarification"}:
+            self.slot_updates = TripSlots()
+            self.build_itinerary = False
+        elif self.intent in {"booking_research", "trip_update"}:
+            self.build_itinerary = False
+        return self
 
 
 def merge_slots(current: TripSlots, updates: TripSlots) -> TripSlots:

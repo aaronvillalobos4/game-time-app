@@ -36,7 +36,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("never claim a partial list", description)
 
     async def test_schedule_path_preserves_state_and_uses_short_research(self):
-        result = SimpleNamespace(pydantic=AssistantTurn(reply="Verified game date",
+        result = SimpleNamespace(pydantic=AssistantTurn(intent="information", reply="Verified game date",
             build_itinerary=True, slot_updates=TripSlots(event="Unchosen game")))
         with patch("agents.Crew") as crew:
             crew.return_value.kickoff_async = AsyncMock(return_value=result)
@@ -44,8 +44,8 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(turn.build_itinerary)
         self.assertIsNone(turn.slot_updates.event)
         agent = crew.call_args.kwargs["agents"][0]
-        self.assertEqual(agent.max_iter, 4)
-        self.assertIn("ONE focused search", crew.call_args.kwargs["tasks"][0].description)
+        self.assertEqual(agent.max_iter, 8)
+        self.assertIn("INTENT:", crew.call_args.kwargs["tasks"][0].description)
 
     def test_mixed_and_planning_questions_keep_full_path(self):
         for message in ("When is the next game and find a hotel", "Top games this month?",
