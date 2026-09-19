@@ -12,6 +12,17 @@ from conversation import AssistantTurn, ChatMessage, ChatParseRequest, TripSlots
 
 
 class ConversationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_specific_game_questions_do_not_receive_full_season_instructions(self):
+        for message in ("When is the Cowboys next home game?", "What time does that game start?",
+                        "Where is it played?", "Show me that game", "What time is hotel checkout?"):
+            with patch("agents.Crew") as crew:
+                crew.return_value.kickoff_async = AsyncMock(return_value=SimpleNamespace(
+                    pydantic=AssistantTurn(reply="Requested detail")))
+                await answer_trip_message(ChatParseRequest(message=message))
+            description = crew.call_args.kwargs["tasks"][0].description
+            self.assertNotIn("ENTIRE relevant season schedule", description)
+            self.assertIn("RESPONSE SCOPE", description)
+
     async def test_schedule_listing_has_full_season_policy_and_research_budget(self):
         for message in ("Show me the Cowboys schedule", "Show me the next five games"):
             with patch("agents.Crew") as crew:

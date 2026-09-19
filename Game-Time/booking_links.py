@@ -24,7 +24,7 @@ BOOKING_LINK_POLICY = (
     "or general research sources. Give the researched information directly in "
     "chat; attribute evidence with plain-text source names, never source URLs. "
     "Do not tell users to visit a schedule or website to get the answer. "
-    "For schedule listings, show the entire relevant season by default; for a "
+    "Only when explicitly asked for a schedule listing, show the relevant season; for a "
     "next-game question show one upcoming game, honoring requested home/away scope "
     "and any explicit date range or count. Include opponents, date/year, venue/city, "
     "and time/timezone when verified (otherwise TBD). If fewer games can be verified, "

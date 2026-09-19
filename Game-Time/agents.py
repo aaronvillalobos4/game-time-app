@@ -44,14 +44,16 @@ SCHEDULE_DISPLAY_POLICY = (
 
 
 def requests_schedule_listing(message: str) -> bool:
-    return bool(re.search(r"\bschedules?\b|\b(?:show|list)\b.*\bgames?\b", message, re.I))
+    if re.search(r"\b(?:next (?:home |away )?game|what time|kickoff|where|why)\b", message, re.I):
+        return False
+    return bool(re.search(r"\bschedules?\b|\b(?:show|list)\b.*\bgames\b", message, re.I))
 
 
 def is_simple_schedule_question(message: str) -> bool:
     """Keep planning, recommendations and mixed requests on the full path."""
     return (len(message) <= 240
-            and not re.search(r"\b(hotel|flight|budget|itinerary|book|build|change|plan|best|top|recommend|tickets?)\b", message, re.I)
-            and bool(re.search(r"\b(next (?:home |away )?game|when (?:is|are|do|does)|what time|schedule|kickoff)\b", message, re.I)))
+            and not re.search(r"\b(hotels?|flights?|budget|itinerary|book|build|change|plan|best|top|recommend|tickets?)\b", message, re.I)
+            and bool(re.search(r"\b(next (?:home |away )?game|schedules?|kickoff)\b|\b(?:when|what time)\b.*\b(?:game|play|kick|match)\b", message, re.I)))
 
 
 RESET_PATTERN = re.compile(
@@ -293,11 +295,22 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "build_itinerary=false, suggests_hotels=false; browsing is not a trip choice. "
             + BOOKING_LINK_POLICY + "Conversation data:\n" + json.dumps(request.model_dump(), ensure_ascii=False)
         )
-    task.description += "\n" + SCHEDULE_DISPLAY_POLICY
+    if requests_schedule_listing(request.message):
+        task.description += "\n" + SCHEDULE_DISPLAY_POLICY
+    else:
+        task.description += (
+            "\nRESPONSE SCOPE: Answer only the latest question. Do not display a full "
+            "season schedule unless the user explicitly asks for one. A next-game "
+            "question needs one game; a kickoff, opponent or venue question needs "
+            "that detail. Resolve 'that game', 'there', 'what time' and similar "
+            "follow-ups from recent conversation. Ask one clarification only when "
+            "the referent is ambiguous. Do not repeat previously answered schedules."
+        )
     task.description += (
         "\nBUDGET FIRST: Before researching tickets, fares, hotels or building/revising "
         "an itinerary, require current_slots.budget. If absent, collect user details "
-        "without booking research and ask: " + BUDGET_QUESTION +
+        "without booking research. Ask for a budget only when the user requests "
+        "paid booking research or itinerary work, not for every informational turn: " + BUDGET_QUESTION +
         " Never choose a sample budget without consent. General sports schedules and "
         "venue facts may be answered without a budget. If the user supplies a budget "
         "in this message but it is not yet in current_slots, save it in slot_updates "

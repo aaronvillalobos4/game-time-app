@@ -1,12 +1,20 @@
 import unittest
 from unittest.mock import AsyncMock, patch
-from budget_gate import BUDGET_QUESTION, budget_from_message
+from budget_gate import BUDGET_QUESTION, budget_from_message, needs_budget
 from conversation import ChatParseRequest, ChatMessage, AssistantTurn
 from app import parse_intent, ItineraryRequest
 from pydantic import ValidationError
 
 
 class BudgetGateTests(unittest.IsolatedAsyncioTestCase):
+    def test_information_is_not_booking_research(self):
+        for message in ("Are tickets digital?", "What time is hotel checkout?",
+                        "What does a refundable flight mean?", "When is their next game?"):
+            self.assertFalse(needs_budget(message))
+        for message in ("Find hotels", "Compare flights", "How much do tickets cost?",
+                        "Build my itinerary", "Show ticket prices"):
+            self.assertTrue(needs_budget(message))
+
     async def test_booking_research_waits_without_calling_agent(self):
         for message in ("Find hotels in Dallas", "Find flights to Dallas", "Show ticket prices", "Build my itinerary"):
             with patch('app.answer_trip_message', new_callable=AsyncMock) as agent:

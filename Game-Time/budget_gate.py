@@ -32,5 +32,10 @@ def budget_from_message(request):
 
 
 def needs_budget(message):
-    return bool(re.search(r"\b(tickets?|flights?|hotels?|lodging|accommodations?|itinerar\w*|"
-                          r"book(?:ing)?|plan (?:a|my|the|our) trip)\b", message, re.I))
+    # Mentioning a service is not itself a request to shop for it.
+    service = r"(?:tickets?|flights?|hotels?|lodging|accommodations?|fares?)"
+    return bool(re.search(
+        rf"\b(?:find|search|compare|recommend|show|book|reserve|cheaper|replace)\b.*\b{service}\b|"
+        rf"\b{service}\b.*\b(?:prices?|cost|rates?|options?|available|availability)\b|"
+        rf"\b(?:prices?|cost|rates?)\b.*\b{service}\b|"
+        r"\b(?:build|create|make|revise|change|plan)\b.*\b(?:itinerary|trip)\b", message, re.I))
