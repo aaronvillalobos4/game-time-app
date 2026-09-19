@@ -16,7 +16,7 @@ from crewai.tools import tool
 from affiliate_links import (affiliate_url_for,
                              with_hotel_booking_link, hotel_booking_policy, flight_booking_policy, trip_extras_policy)
 from travelpayouts import convert_hotel_links, convert_flight_links, convert_extra_links
-from conversation import AssistantTurn, ChatParseRequest
+from conversation import AssistantTurn, ChatParseRequest, next_question
 from response_format import CHAT_FORMAT
 from itinerary import ItineraryPlan, STRUCTURED_ITINERARY, render_itinerary
 from booking_links import BOOKING_LINK_POLICY
@@ -25,7 +25,7 @@ from espn_schedule import League, TeamSelectionError, team_event_records
 from event_records import render_schedule
 from trip_clock import calendar_context
 from budget_gate import BUDGET_QUESTION
-from research_policy import ResearchPurpose, run_research
+from research_policy import ResearchPurpose, run_research, BOOKING_PURPOSES
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +246,14 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
         hotels or trip_extras; never disguise paid research as general information.
         General explanations, event dates and venue facts do not require a budget.
         """
+        if purpose in BOOKING_PURPOSES:
+            missing = next_question(request.current_slots)
+            if missing:
+                return "Before booking research, collect the trip details: " + missing
+            if purpose == "hotels" and request.current_slots.needs_hotel is False:
+                return "The user does not need a hotel. Do not research lodging."
+            if purpose == "flights" and request.current_slots.needs_flight is False:
+                return "The user does not need flights. Do not research flights."
         return run_research(query, purpose, request.current_slots.budget, _google_search)
     researcher = Agent(
         role="Game Time Sports Trip Assistant",
@@ -310,7 +318,22 @@ async def answer_trip_message(request: ChatParseRequest) -> AssistantTurn:
             "If the user will drive or is local, set needs_flight=false; if they want "
             "flights, set true and collect departure_city. Budget must be a positive "
             "total number, never a quoted ticket/hotel price from your research. "
-            "Once event, date, flight choice, origin (if flying), and budget are known, "
+            "Collect needs_hotel explicitly: never assume that driving means no hotel. "
+            "ATTENDANCE INTAKE: 'I would like to attend this game', 'I want tickets', "
+            "'help me get tickets' and equivalent personal attendance/booking requests "
+            "begin a custom trip itinerary. Set trip_requested=true and intent=trip_update. "
+            "Resolve 'this game' only from an unambiguous previously discussed event; "
+            "otherwise ask which game. Collect game/date, flight choice, departure city "
+            "if flying, hotel choice, then total budget. Ask one missing question at a "
+            "time, saving all explicitly provided details together. Do not re-ask saved "
+            "answers. A response to an intake question is intent=trip_update even when "
+            "short ('yes', 'no hotel', '$800'). Set trip_requested=false if the user "
+            "cancels planning. A generic question about prices or schedules is not an "
+            "attendance request. When intake is complete, the server automatically "
+            "starts their custom itinerary; no extra build confirmation is needed. "
+            "Only offer a sample budget; use it after explicit consent. Never promise "
+            "unverified booking links or availability. For other conversations, "
+            "once event, date, flight choice, hotel choice, origin (if flying), and budget are known, "
             "summarize their choices; the server adds an offer to build after the "
             "final detail is collected. Set build_itinerary=true ONLY "
             "when the latest user message requests building it or confirms that offer, "
@@ -560,6 +583,13 @@ class TravelCrew:
 
         research_tasks = [ticket_task, hotel_task]
         agents = [ticket_agent, hotel_agent]
+        if self.inputs.get("needs_hotel") is False:
+            hotel_task.description = (
+                "The user does not need lodging. Do not search for or recommend hotels. "
+                f"Research optional dining and local activities near {self.inputs['game']} "
+                f"on {self.inputs['date']}, with sourced prices or clear unknowns. "
+                "Include convenient free options when verified. " + trip_extras_policy() + BOOKING_LINK_POLICY)
+            hotel_task.expected_output = "Sourced optional local experiences; no hotels."
 
         if self.inputs["origin"].casefold() not in {"", "local", "none"}:
             flight_agent = self.flight_agent()
@@ -600,6 +630,7 @@ class TravelCrew:
                 "budget, say so and identify the shortfall. Include optional local "
                 "dinner/activity ideas from the supplied research only as the "
                 "remaining budget allows, following the extras rules below. "
+                + f" Hotel needed: {self.inputs.get('needs_hotel', True)}. If false, omit all lodging costs and hotel options. "
                 + STRUCTURED_ITINERARY
                 + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy()
                 + BOOKING_LINK_POLICY
@@ -659,6 +690,9 @@ class TravelCrew:
                 "a short changes list, then return the FULL revised itinerary "
                 "using the format below, not just a patch or advice. Never claim a "
                 "reservation was changed or booked. "
+                "Honor needs_hotel in the trip data: when false, remove lodging "
+                "options and costs and do not search hotels. When true, include "
+                "lodging or explicitly unpriced hotel costs and verified booking links. "
                 + STRUCTURED_ITINERARY + hotel_booking_policy() + flight_booking_policy() + trip_extras_policy() + BOOKING_LINK_POLICY + "\nTrip and revision data:\n"
                 + json.dumps(self.inputs, ensure_ascii=False)
             ),

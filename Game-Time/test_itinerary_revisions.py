@@ -12,7 +12,7 @@ from conversation import AssistantTurn, ChatParseRequest, TripSlots
 class RevisionTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.slots = TripSlots(event="Team A vs Team B", date="October 10, 2026",
-                               budget=1000, needs_flight=False, departure_city="Local")
+                               budget=1000, needs_flight=False, needs_hotel=True, departure_city="Local")
 
     async def test_hotel_edit_can_build_without_changing_slots(self):
         with patch("app.answer_trip_message", new_callable=AsyncMock,
@@ -40,7 +40,7 @@ class RevisionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_stream_passes_original_and_requested_changes(self):
         request = ItineraryRequest(event=self.slots.event, date=self.slots.date,
-            departure_city="Local", budget=800, current_itinerary="Original hotel and tickets",
+            departure_city="Local", budget=800, needs_hotel=True, current_itinerary="Original hotel and tickets",
             revision_request="Find a cheaper hotel", revision_context="Keep my ticket seats")
         with patch("app.TravelCrew") as crew:
             crew.return_value.run = AsyncMock(return_value="Revised full itinerary")
@@ -65,7 +65,7 @@ class RevisionTests(unittest.IsolatedAsyncioTestCase):
         tickets.assert_not_called()
 
     async def test_stream_failure_does_not_emit_success_marker(self):
-        request = ItineraryRequest(event="Game", date="October 10, 2026", departure_city="Local", budget=800)
+        request = ItineraryRequest(event="Game", date="October 10, 2026", departure_city="Local", budget=800, needs_hotel=True)
         with patch("app.TravelCrew") as crew, self.assertLogs("app", level="ERROR"):
             crew.return_value.run = AsyncMock(side_effect=RuntimeError("Unavailable"))
             response = await generate_itinerary_stream(request)

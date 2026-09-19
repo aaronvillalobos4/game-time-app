@@ -27,6 +27,8 @@ type TripSlots = {
   event?: string | null;
   date?: string | null;
   needs_flight?: boolean | null;
+  needs_hotel?: boolean | null;
+  trip_requested?: boolean | null;
   departure_city?: string | null;
   budget?: number | null;
 };
@@ -94,7 +96,8 @@ export default function Home() {
   };
 
   const generateItinerary = async (trip: TripSlots, revisionRequest: string, revisionContext: string) => {
-    if (!trip.event || !trip.date || trip.budget == null) {
+    if (!trip.event || !trip.date || trip.budget == null || trip.needs_hotel == null ||
+        trip.needs_flight == null || (trip.needs_flight && !trip.departure_city)) {
       throw new Error("The trip was marked complete without all required details.");
     }
 
@@ -107,6 +110,7 @@ export default function Home() {
         date: trip.date,
         departure_city: trip.departure_city || "Local",
         budget: trip.budget,
+        needs_hotel: trip.needs_hotel,
         current_itinerary: itinerary?.slice(0, 20_000) ?? null,
         revision_request: revisionRequest,
         revision_context: revisionContext,

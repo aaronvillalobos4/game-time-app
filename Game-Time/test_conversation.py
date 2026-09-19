@@ -106,7 +106,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
 
     def setUp(self):
         self.complete = TripSlots(event="Chosen matchup", date="October 10, 2026",
-                                  needs_flight=False, departure_city="Local", budget=600)
+                                  needs_flight=False, needs_hotel=True, departure_city="Local", budget=600)
 
     async def respond(self, message, turn, **kwargs):
         request = ChatParseRequest(message=message, **kwargs)

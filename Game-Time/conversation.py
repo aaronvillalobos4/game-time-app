@@ -3,6 +3,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from budget_gate import BUDGET_QUESTION
 
 
 class TripSlots(BaseModel):
@@ -11,6 +12,8 @@ class TripSlots(BaseModel):
     event: str | None = Field(default=None, min_length=1, max_length=300)
     date: str | None = Field(default=None, min_length=1, max_length=100)
     needs_flight: bool | None = None
+    needs_hotel: bool | None = None
+    trip_requested: bool | None = None
     departure_city: str | None = Field(default=None, min_length=1, max_length=200)
     budget: float | None = Field(default=None, gt=0, le=1_000_000, allow_inf_nan=False)
 
@@ -85,6 +88,8 @@ def next_question(slots: TripSlots) -> str | None:
         return "Will you need flights for this trip?"
     if slots.needs_flight and not slots.departure_city:
         return "Where will you be flying from?"
+    if slots.needs_hotel is None:
+        return "Will you need a hotel for this trip?"
     if slots.budget is None:
-        return "What is your target total budget for this trip?"
+        return BUDGET_QUESTION
     return None

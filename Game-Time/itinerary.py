@@ -123,8 +123,10 @@ def render_itinerary(plan: ItineraryPlan, inputs: dict) -> str:
     if not budget.is_finite() or budget <= 0:
         raise ValueError("A finite positive budget is required")
     flying = inputs.get("origin", "Local").casefold() not in {"", "local", "none"}
-    selected = [c for c in plan.costs if c.selected and (flying or c.category != "flights")]
-    required = {"tickets", "hotel", "transport", "food", "fees"} | ({"flights"} if flying else set())
+    lodging = inputs.get("needs_hotel", True)
+    eligible = [c for c in plan.costs if (flying or c.category != "flights") and (lodging or c.category != "hotel")]
+    selected = [c for c in eligible if c.selected]
+    required = {"tickets", "transport", "food", "fees"} | ({"hotel"} if lodging else set()) | ({"flights"} if flying else set())
     missing = sorted(required - {c.category for c in selected})
     unknown = missing + [c.name for c in selected if bounds(c) is None]
     low = sum((bounds(c)[0] for c in selected if bounds(c)), Decimal(0))
@@ -147,7 +149,9 @@ def render_itinerary(plan: ItineraryPlan, inputs: dict) -> str:
     for title, categories in [("🎟️ Ticket Options", {"tickets"}), ("🏨 Where to Stay", {"hotel"}),
                               ("✈️ Getting There" if flying else "🚗 Getting There", {"flights", "transport"})]:
         rows += ["", f"## {title}", ""]
-        for c in plan.costs:
+        if not lodging and "hotel" in categories:
+            rows += ["Hotel: not needed."]
+        for c in eligible:
             if c.category in categories and not c.optional and (flying or c.category != "flights"):
                 rows += [f"- **{cell(c.name)}** ({'Selected' if c.selected else 'Alternative'}): {cost_text(c)} — {cell(c.basis)}. {booking(c)}. {cell(c.evidence)}"]
         if not flying and "transport" in categories:
@@ -165,7 +169,7 @@ def render_itinerary(plan: ItineraryPlan, inputs: dict) -> str:
     elif not unknown:
         rows += [f"**Remaining budget:** {money(budget-high)} (using upper estimates)."]
     rows += ["", *[f"- {cell(c.name)}: {cell(c.evidence)}" for c in selected]]
-    extras = [c for c in plan.costs if c.optional]
+    extras = [c for c in eligible if c.optional]
     extra_high = sum((bounds(c)[1] for c in extras if bounds(c)), Decimal(0))
     fits = bool(extras) and not unknown and all(bounds(c) is not None for c in extras) and high + extra_high < budget
     allowed = extras if fits else [c for c in extras if bounds(c) == (Decimal(0), Decimal(0))]

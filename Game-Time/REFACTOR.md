@@ -95,3 +95,20 @@ plan. Persisting versioned structured plans is a separate future phase. Tests co
 build/revision wiring, ranges, quantities, unknown costs, currency, alternatives,
 extras, malformed output and nonfinite budgets. No paid live-model evaluation was
 run for this phase.
+
+## Guided attendance intake
+
+Personal attendance/ticket requests start a saved `trip_requested` intake. The
+assistant resolves the chosen event/date from context or asks, then gathers flight
+need (and origin if flying), explicit `needs_hotel`, and total budget. It asks only
+for missing details. On an intake update with complete details, the API starts
+generation automatically; schedule/information detours do not trigger generation.
+Intent recognition and extraction remain model-driven; completeness is enforced
+server-side. Sample budgets still require consent. Booking research tools also
+check intake completeness before searching.
+
+Hotel preference is carried through the browser and required by the itinerary
+endpoint. Deploy frontend and backend together: older browser builds must refresh
+before generating itineraries. No-hotel plans omit hotel research, options and
+costs, including on revisions. Research cannot guarantee inventory or matching
+booking links; missing verified links remain explicitly unavailable.

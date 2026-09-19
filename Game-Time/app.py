@@ -31,6 +31,7 @@ class ItineraryRequest(BaseModel):
     date: str = Field(min_length=1, max_length=100)
     departure_city: str = Field(min_length=1, max_length=200)
     budget: float = Field(gt=0, le=1_000_000)
+    needs_hotel: bool
     current_itinerary: str | None = Field(default=None, max_length=20_000)
     revision_request: str | None = Field(default=None, max_length=1_000)
     revision_context: str | None = Field(default=None, max_length=40_000)
@@ -92,13 +93,20 @@ async def parse_intent(request: ChatParseRequest) -> dict[str, object]:
         }
 
     missing_question = next_question(slots)
-    complete = turn.build_itinerary and missing_question is None
+    intake_turn = slots.trip_requested is True and turn.intent in {"trip_update", "build_itinerary", "booking_research"}
+    complete = (turn.build_itinerary or (intake_turn and not request.current_itinerary)) and missing_question is None
     reply = await asyncio.to_thread(with_hotel_booking_link, turn.reply, turn.suggests_hotels)
     if sample:
         reply = "I'll use a suggested **$1,500 total trip budget** for now; you can change it anytime.\n\n" + reply
-    if turn.build_itinerary and missing_question:
+    if intake_turn and missing_question:
+        reply = "I'll tailor the itinerary to your choices. " + missing_question
+        if sample:
+            reply = "I'll use the suggested $1,500 total budget. " + reply
+    elif complete and intake_turn and not request.current_itinerary:
+        reply = "Thanks—I have your trip details. I'll build your custom itinerary with available ticket and travel booking links."
+    elif turn.build_itinerary and missing_question:
         reply = f"{reply}\n\nBefore I can build your itinerary: {missing_question}"
-    elif missing_question is None and not complete and slots != original_slots:
+    elif missing_question is None and not complete and slots != original_slots and turn.intent not in {"information", "schedule", "clarification"}:
         reply += "\n\nWould you like me to build your itinerary with these details?"
     return {
         "is_reset": False,
@@ -121,6 +129,7 @@ async def generate_itinerary_stream(request: ItineraryRequest) -> StreamingRespo
         "date": request.date.strip(),
         "origin": request.departure_city.strip(),
         "budget": request.budget,
+        "needs_hotel": request.needs_hotel,
         "current_itinerary": request.current_itinerary,
         "revision_request": request.revision_request,
         "revision_context": request.revision_context,
